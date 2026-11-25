@@ -10,3 +10,14 @@ A retro Minesweeper parody about AI safety. Attempt to safely navigate the singu
 The game is a single self-contained `public/index.html` with no build step. Open it in a browser, or deploy with Cloudflare Workers: `wrangler.jsonc` serves the `public/` folder as static assets, so `npx wrangler deploy` (or a Workers Git build) publishes it.
 
 Lab logos come from [LobeHub Icons](https://github.com/lobehub/lobe-icons) and belong to their respective owners. This is an unaffiliated parody.
+
+## Extinction tracking and privacy
+
+When a player reaches the final fade to black, the browser records it in local storage and the Worker (`src/index.js`) records a keyed hash of their IP address, so reloading only shows the "Extinction is forever" screen.
+
+- Only an HMAC-SHA-256 of the IP is stored, keyed with a random secret that is generated inside the Durable Object and never leaves it. The raw IP is never stored or logged by the app.
+- Entries expire after 30 days and a daily alarm deletes them.
+- Nothing else about the player is collected or shared.
+- The page says this in a short notice, and its "Forget me" link deletes the caller's entry and local flag.
+
+Endpoints: `GET /api/status`, `POST /api/extinct`, `POST /api/forget`.

@@ -1,5 +1,8 @@
 {
   "name": "perplexitysweeper",
+  "main": "src/index.js",
   "compatibility_date": "2025-11-01",
-  "assets": { "directory": "./public" }
+  "assets": { "directory": "./public", "binding": "ASSETS" },
+  "durable_objects": { "bindings": [{ "name": "REGISTRY", "class_name": "Registry" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Registry"] }]
 }

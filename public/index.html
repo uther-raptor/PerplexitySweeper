@@ -89,6 +89,8 @@ body{margin:0;min-height:100vh;background:var(--desk);font:13px/1.4 Tahoma,Verda
 #dyFade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:9}#dyFade.on{pointer-events:auto;cursor:default}
 #forever{position:fixed;inset:0;background:#000;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;color:#ddd;font:18px/1.5 "Courier New",ui-monospace,monospace}
 #forever[hidden]{display:none}
+.privacy{margin:10px 0 0;max-width:min(480px,92vw);color:#bfe3e3;font-size:12px;line-height:1.45;text-align:center}.privacy a,#forever .privacy a{color:inherit}
+#forever .privacy{color:#777;font:12px/1.45 Tahoma,Verdana,sans-serif;position:absolute;bottom:18px;left:0;right:0;margin:0 auto;padding:0 16px}
 #forever p{margin:0}#forever a{color:#ffcc33;font-size:16px}#forever a:focus-visible{outline:1px dotted #ffcc33;outline-offset:4px}
 @media(prefers-reduced-motion:no-preference){.c.boom .badge{animation:pop .35s ease-out}@keyframes pop{0%{transform:scale(.3)}70%{transform:scale(1.25)}100%{transform:scale(1)}}}
 </style></head><body>
@@ -111,13 +113,14 @@ body{margin:0;min-height:100vh;background:var(--desk);font:13px/1.4 Tahoma,Verda
 </div>
 
 <p class="blurb">Attempt to safely navigate the singularity. Unfortunately, given the state of safety research, your only guide are the log-perplexity values of models.</p>
+<p class="privacy">Privacy: if humanity goes extinct on your watch, this site stores a salted hash of your IP address (never the address itself) for 30 days so the extinction sticks. Nothing else is collected and nothing is shared. <a href="#" class="forget">Forget me</a></p>
 <div class="chess" id="chess"><div class="win cwin"><div class="title"><span id="chT">Last-ditch defense</span></div>
   <div class="cbody"><div class="sunk"><div id="cb"></div></div>
   <div class="cside"><div id="chS" class="sunk" role="status"></div><ul id="chL" class="sunk"></ul>
   <div class="cacts"><button class="btn" id="chResign">Resign</button><button class="btn" id="chBack">Back to the minefield</button></div></div></div></div></div>
 <div class="dyson" id="dyson" aria-live="polite"><pre id="dyPre" aria-hidden="true"></pre><div id="dyCap"></div><div id="dyEnd" hidden>click to continue</div></div>
 <div id="dyFade"></div>
-<div id="forever" hidden><p>Extinction is forever.<br>Pause AI now.</p><a href="https://pauseai.info" target="_blank" rel="noopener">PauseAI Global</a></div>
+<div id="forever" hidden><p>Extinction is forever.<br>Pause AI now.</p><a href="https://pauseai.info" target="_blank" rel="noopener">PauseAI Global</a><p class="privacy">Privacy: if humanity goes extinct on your watch, this site stores a salted hash of your IP address (never the address itself) for 30 days so the extinction sticks. Nothing else is collected and nothing is shared. <a href="#" class="forget">Forget me</a></p></div>
 <div class="dlg" id="dlg"><div class="win"><div class="title"><span id="dlgT">PerplexitySweeper</span></div><div class="body"><div id="dlgI"></div><div id="dlgM"></div></div><div class="acts" id="dlgActs"></div></div></div>
 
 <script>
@@ -661,13 +664,18 @@ function dyFrame(now){
   $("dyPre").innerHTML=html;
   if(t>14.5&&t2<0&&$("dyEnd").hidden)$("dyEnd").hidden=false;
   if(t2>=0){$("dyEnd").hidden=true;const f=$("dyFade");f.classList.add("on");f.style.opacity=ease((t2-5.5)/4.5).toFixed(3);
-    if(t2>10.5){DY.dead=true;store.set("ps-extinct","1");cancelAnimationFrame(DY.raf);$("dyPre").innerHTML="";$("dyCap").textContent="";f.style.opacity=1;stop();return}}
+    if(t2>10.5){DY.dead=true;store.set("ps-extinct","1");fetch("/api/extinct",{method:"POST"}).catch(()=>{});cancelAnimationFrame(DY.raf);$("dyPre").innerHTML="";$("dyCap").textContent="";f.style.opacity=1;stop();return}}
   if($("dyson").classList.contains("show"))DY.raf=requestAnimationFrame(dyFrame);
 }
 $("dyson").addEventListener("click",()=>{if(DY.dead||DY.p2!=null)return;if(!$("dyEnd").hidden){DY.p2=DY.t;return}DY.t0=Math.min(DY.t0,performance.now()-13.6e3)});
 
 newGame();
-if(store.get("ps-extinct")==="1"){stop();$("forever").hidden=false;document.documentElement.style.overflow="hidden"}
+const showForever=()=>{stop();$("forever").hidden=false;document.documentElement.style.overflow="hidden"};
+if(store.get("ps-extinct")==="1")showForever();
+else fetch("/api/status",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(d=>{if(d&&d.extinct){store.set("ps-extinct","1");showForever()}}).catch(()=>{});
+document.addEventListener("click",e=>{const a=e.target.closest(".forget");if(!a)return;e.preventDefault();
+  try{localStorage.removeItem("ps-extinct")}catch(err){}
+  fetch("/api/forget",{method:"POST"}).catch(()=>{}).finally(()=>location.reload())});
 }
 </script>
 </body></html>
