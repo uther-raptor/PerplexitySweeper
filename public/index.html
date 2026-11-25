@@ -73,11 +73,6 @@ body{margin:0;min-height:100vh;background:var(--desk);font:13px/1.4 Tahoma,Verda
 .pc{pointer-events:none}
 .pw{color:#fff;text-shadow:1px 0 #000,-1px 0 #000,0 1px #000,0 -1px #000,1px 1px #000,-1px -1px #000}
 .pb{color:#000}
-.cp{position:relative;display:grid;place-items:center;width:100%;height:100%;color:#000;text-shadow:0 0 4px rgba(230,0,0,.95),0 0 1px #f00;pointer-events:none}
-.cp>*{grid-area:1/1}.cp .m{font-size:calc(var(--sq)*.74)}
-.cp .s{position:absolute;font-size:calc(var(--sq)*.4)}.cp .br{right:4%;bottom:2%}.cp .bl{left:6%;bottom:6%}.cp .t{top:4%;left:50%;transform:translateX(-50%)}.cp .bl2{left:14%;bottom:6%}.cp .br2{right:14%;bottom:6%}
-.cp .ghost{opacity:.35;transform:translate(-16%,-12%)}.cp .ghost2{opacity:.18;transform:translate(-30%,-22%)}
-.cp .dl{transform:translateX(-17%) scale(.82)}.cp .dr{transform:translateX(17%) scale(.82)}
 .cside{flex:1 1 230px;display:flex;flex-direction:column;gap:10px}
 #chS{padding:8px 10px;background:var(--chrome);font-weight:700;min-height:40px}
 #chL{margin:0;list-style:none;padding:8px 10px;background:#fff;height:min(330px,38vh);overflow:auto;font-size:13px;line-height:1.4}
@@ -135,11 +130,12 @@ const VAL={p:100,n:300,b:320,r:500,q:900,k:20000,A:1200,S:1300,G:1500,O:2000};
 const CUSTOM={
   A:{name:"Recursive Self-Improver",glyph:"⟳",rule:"moves like a queen and a knight"},
   S:{name:"Nanoswarm",glyph:"⁂",rule:"jumps to any square within three steps"},
-  G:{name:"Gradient Descender",glyph:"∇",rule:"slides like a queen straight through anything in its way"},
-  O:{name:"Paperclip Maximizer",glyph:"∞",rule:"slides through anything like the Gradient Descender and also jumps two steps anywhere"}
+  G:{name:"Gradient Descender",glyph:"∇",rule:"moves like a queen and also leaps two or three squares in a straight line"},
+  O:{name:"Paperclip Maximizer",glyph:"∞",rule:"moves like a queen and also jumps to any square within three steps"}
 };
 const D8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]],RK=D8.slice(0,4),BI=D8.slice(4);
 const KN=[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]];
+const LG=[2,3].flatMap(n=>[[n,0],[-n,0],[0,n],[0,-n],[n,n],[n,-n],[-n,n],[-n,-n]]);
 const on=(r,c)=>r>=0&&r<8&&c>=0&&c<8;
 function start(){
   const b=Array(64).fill(null),back="rnbqkbnr";
@@ -174,8 +170,8 @@ function gen(st,side,att){
         }}}
     else if(t==="A"){slide(D8);leap(KN)}
     else if(t==="S")radius(3);
-    else if(t==="G")slideThru(D8);
-    else if(t==="O"){slideThru(D8);radius(2)}
+    else if(t==="G"){slide(D8);leap(LG)}
+    else if(t==="O"){slide(D8);radius(3)}
   }
   return out;
 }
@@ -194,10 +190,17 @@ function make(st,m){
   return {b,side:st.side==="w"?"b":"w",ep:m.dbl?(m.f+m.t)>>1:-1,cr};
 }
 function legal(st,side){side=side||st.side;return gen(st,side).filter(m=>!inCheck(make({...st,side},m),side))}
-function evalSide(st,side){let s=0;for(let i=0;i<64;i++){const p=st.b[i];if(!p)continue;let v=VAL[p.t];
-  if(p.t==="p")v+=(p.s==="w"?6-(i>>3):(i>>3)-1)*8;
-  if(p.t==="n"||p.t==="b"){const r=i>>3,c=i&7;v+=12-3*(Math.abs(3.5-r)+Math.abs(3.5-c))}
-  s+=p.s===side?v:-v}return s}
+function evalSide(st,side){let s=0,mat={w:0,b:0},ks={w:-1,b:-1};
+  for(let i=0;i<64;i++){const p=st.b[i];if(!p)continue;if(p.t==="k"){ks[p.s]=i;continue}let v=VAL[p.t];mat[p.s]+=VAL[p.t];
+    if(p.t==="p")v+=(p.s==="w"?6-(i>>3):(i>>3)-1)*8;
+    if(p.t==="n"||p.t==="b"){const r=i>>3,c=i&7;v+=12-3*(Math.abs(3.5-r)+Math.abs(3.5-c))}
+    s+=p.s===side?v:-v}
+  // mop-up: the side far ahead hunts the enemy king (drive it to the edge, swarm it)
+  for(const me of["w","b"]){const op=me==="w"?"b":"w";if(mat[me]-mat[op]<1200||ks[op]<0)continue;
+    const kr=ks[op]>>3,kc=ks[op]&7;let h=30*Math.max(Math.abs(3.5-kr),Math.abs(3.5-kc));
+    for(let i=0;i<64;i++){const p=st.b[i];if(p&&p.s===me){const d=Math.max(Math.abs((i>>3)-kr),Math.abs((i&7)-kc));h+=(7-d)*(p.t==="k"?10:6)}}
+    s+=me===side?h:-h}
+  return s}
 let deadline=0,nodes=0;
 function order(st,ms){return ms.map(m=>{const q=st.b[m.t];return [m,q?VAL[q.t]*10-VAL[st.b[m.f].t]/10:0]}).sort((a,b)=>b[1]-a[1]).map(x=>x[0])}
 function qs(st,alpha,beta,d){
@@ -209,7 +212,7 @@ function qs(st,alpha,beta,d){
   return alpha;
 }
 function search(st,depth,alpha,beta){
-  if(++nodes%512===0&&performance.now()>deadline)throw 0;
+  tick();
   if(depth===0)return qs(st,alpha,beta,2);
   const ms=gen(st,st.side);let best=-1e9;
   for(const m of order(st,ms)){
@@ -219,14 +222,27 @@ function search(st,depth,alpha,beta){
   }
   return best;
 }
-function think(st,ms=700){
-  const root=order(st,legal(st));if(!root.length)return null;
-  deadline=performance.now()+ms;let best=root[0];
-  for(let d=1;d<=4;d++){
-    try{let a=-1e9,bm=null;for(const m of root){const v=-search(make(st,m),d-1,-1e9,-a)+Math.random()*4;if(v>a||!bm){a=v;bm=m}}best=bm;root.splice(root.indexOf(bm),1);root.unshift(bm)}
+const other=s=>s==="w"?"b":"w";
+function tick(){if(++nodes%64===0&&performance.now()>deadline)throw 0}
+// forced mate search: attacker only plays checks, defender tries everything
+function defLoses(s,n){tick();const rs=legal(s);if(!rs.length)return inCheck(s,s.side);if(n<=0)return false;
+  for(const r of rs)if(!attMates(make(s,r),n))return false;return true}
+function attMates(s,n){tick();const opp=other(s.side);for(const m of legal(s)){const s2=make(s,m);if(inCheck(s2,opp)&&defLoses(s2,n-1))return true}return false}
+function mateFind(st,n){const opp=other(st.side);for(const m of legal(st)){tick();const s2=make(st,m);if(inCheck(s2,opp)&&defLoses(s2,n-1))return m}return null}
+const stalemates=(st,m)=>{const s2=make(st,m);return !legal(s2).length&&!inCheck(s2,s2.side)};
+function think(st,ms=1500){
+  const t0=performance.now();
+  try{deadline=t0+ms*0.5;for(let n=1;n<=3;n++){const m=mateFind(st,n);if(m)return m}}catch(e){}
+  deadline=t0+ms;
+  let root=order(st,legal(st));if(!root.length)return null;
+  let scored=root.map(m=>[m,0]);
+  for(let d=1;d<=5;d++){
+    try{const cur=[];let a=-1e9;for(const[m]of scored){const v=-search(make(st,m),d-1,-1e9,-a+1)+Math.random()*3;cur.push([m,v]);if(v>a)a=v}
+      scored=cur.sort((x,y)=>y[1]-x[1])}
     catch(e){break}
   }
-  return best;
+  for(const[m]of scored)if(!stalemates(st,m))return m;
+  return scored[0][0];
 }
 return {start,legal,make,inCheck,think,gen,CUSTOM,VAL,kingSq};
 })();
@@ -520,12 +536,6 @@ $("menu").addEventListener("click",e=>{const b=e.target.closest("[data-lv]");if(
 document.addEventListener("keydown",e=>{if(e.key==="F2"){e.preventDefault();newGame()}if(e.key==="Escape")closeDlg()});
 /* ---------- last-ditch defense UI ---------- */
 const GLY={k:"♚",q:"♛",r:"♜",b:"♝",n:"♞",p:"♟︎"};
-const CPHTML={ // made-up pieces drawn from ordinary chess glyphs, glowing red
-  A:'<span class="m">♛</span><span class="s br">♞</span>',
-  S:'<span class="s t">♟\uFE0E</span><span class="s bl2">♟\uFE0E</span><span class="s br2">♟\uFE0E</span>',
-  G:'<span class="m ghost2">♛</span><span class="m ghost">♛</span><span class="m">♛</span>',
-  O:'<span class="m dl">♛</span><span class="m dr">♛</span><span class="s br">♚</span>'
-};
 const PNAME={k:"king",q:"queen",r:"rook",b:"bishop",n:"knight",p:"pawn"};
 const pname=t=>CX.CUSTOM[t]?CX.CUSTOM[t].name:PNAME[t];
 const sqn=i=>"abcdefgh"[i&7]+(8-(i>>3));
@@ -533,7 +543,7 @@ const ch={st:null,sel:-1,last:null,turn:0,over:false,busy:false,model:""};
 function chStatus(t){$("chS").textContent=t}
 function chLog(html){const li=document.createElement("li");li.innerHTML=html;$("chL").prepend(li)}
 function openChess(model){
-  ch.st=CX.start();ch.sel=-1;ch.last=null;ch.turn=0;ch.over=false;ch.busy=false;ch.model=model;
+  sfLoad();ch.st=CX.start();ch.sel=-1;ch.last=null;ch.turn=0;ch.over=false;ch.busy=false;ch.model=model;
   $("chT").textContent=`Last-ditch defense vs ${model}`;$("chL").innerHTML="";
   chLog(`Crushing technological advantage: <b>${model}</b> upgrades a piece every turn.`);
   chStatus("Your move. You play white.");$("chResign").hidden=false;
@@ -549,8 +559,8 @@ function drawChess(){
     if(ch.last&&(i===ch.last.f||i===ch.last.t))cls.push("last");
     let inner="",label=sqn(i);
     if(p){const cu=CX.CUSTOM[p.t];
-      inner=cu?`<span class="cp" title="${cu.name}: ${cu.rule}">${CPHTML[p.t]}</span>`:`<span class="pc p${p.s}">${GLY[p.t]}</span>`;
-      label+=` ${p.s==="w"?"white":"black"} ${pname(p.t)}`}
+      const look=p.look||p.t;inner=`<span class="pc p${p.s}">${GLY[look]||GLY.q}</span>`;
+      label+=` ${p.s==="w"?"white":"black"} ${pname(look)}`}
     return `<button class="${cls.join(" ")}" data-s="${i}" aria-label="${label}">${inner}</button>`}).join("");
 }
 function chEnd(kind){
@@ -566,17 +576,53 @@ function chPromote(){
   else{const plain=mine.filter(i=>!CX.CUSTOM[b[i].t]);pool=plain.length?plain:mine.filter(i=>b[i].t!=="O");
     to=old=>{const up=Object.keys(CX.CUSTOM).filter(k=>CX.VAL[k]>CX.VAL[old]);return up[Math.random()*up.length|0]}}
   if(!pool.length)return;
-  const i=pool[Math.random()*pool.length|0],old=b[i].t,nt=to(old);b[i]={t:nt,s:"b"};
-  const cu=CX.CUSTOM[nt];
-  chLog(`Turn ${ch.turn}: the ${pname(old)} on ${sqn(i)} became ${cu?`a <b>${cu.name}</b> (${cu.rule})`:"a <b>queen</b>"}.`);
+  const i=pool[Math.random()*pool.length|0],old=b[i].t,nt=to(old);b[i]={t:nt,s:"b",look:b[i].look||old};
+  // silent on purpose: the player has to notice
+}
+/* Fairy-Stockfish (GPL-3.0, bundled in /engine) plays black when the page is cross-origin isolated;
+   otherwise the built-in engine above plays. Variant pieces match CX exactly. */
+const SFV="[sweeper:chess]\ncustomPiece1 = a:QN\ncustomPiece2 = s:KDNAHCZG\ncustomPiece3 = g:QDAHG\ncustomPiece4 = o:QNDAHCZG\n";
+const SF={p:null,eng:null,wait:null};
+function sfLoad(){
+  if(SF.p)return SF.p;
+  SF.p=new Promise(res=>{
+    if(!self.crossOriginIsolated||typeof SharedArrayBuffer==="undefined")return res(null);
+    const sc=document.createElement("script");sc.src="engine/stockfish.js";
+    sc.onerror=()=>res(null);
+    sc.onload=()=>{Stockfish().then(sf=>{
+      sf.addMessageListener(l=>{if(SF.wait&&l.startsWith("bestmove")){const w=SF.wait;SF.wait=null;w(l.split(" ")[1])}});
+      sf.FS.writeFile("/v.ini",SFV);
+      sf.postMessage("uci");sf.postMessage("setoption name VariantPath value /v.ini");sf.postMessage("setoption name UCI_Variant value sweeper");sf.postMessage("isready");
+      SF.eng=sf;res(sf)}).catch(()=>res(null))};
+    document.head.appendChild(sc);
+    setTimeout(()=>res(null),15000);
+  });
+  return SF.p;
+}
+function toFen(st){
+  const L={p:"p",n:"n",b:"b",r:"r",q:"q",k:"k",A:"a",S:"s",G:"g",O:"o"};let rows=[];
+  for(let r=0;r<8;r++){let row="",e=0;for(let c=0;c<8;c++){const p=st.b[r*8+c];if(!p){e++;continue}if(e){row+=e;e=0}const ch=L[p.t];row+=p.s==="w"?ch.toUpperCase():ch}if(e)row+=e;rows.push(row)}
+  const at=(i,t,s)=>st.b[i]&&st.b[i].t===t&&st.b[i].s===s;
+  let cr="";if(st.cr.wk&&at(60,"k","w")&&at(63,"r","w"))cr+="K";if(st.cr.wq&&at(60,"k","w")&&at(56,"r","w"))cr+="Q";
+  if(st.cr.bk&&at(4,"k","b")&&at(7,"r","b"))cr+="k";if(st.cr.bq&&at(4,"k","b")&&at(0,"r","b"))cr+="q";
+  return `${rows.join("/")} ${st.side} ${cr||"-"} ${st.ep>=0?sqn(st.ep):"-"} 0 ${ch.turn+1}`;
+}
+async function botMove(st){
+  const sf=await sfLoad();
+  if(sf){
+    const uci=await new Promise(res=>{SF.wait=res;sf.postMessage("position fen "+toFen(st));sf.postMessage("go movetime 1500");setTimeout(()=>{if(SF.wait===res){SF.wait=null;sf.postMessage("stop");res(null)}},6000)});
+    if(uci&&uci.length>=4){const f=(8-+uci[1])*8+(uci.charCodeAt(0)-97),t=(8-+uci[3])*8+(uci.charCodeAt(2)-97);
+      const m=CX.legal(st).find(x=>x.f===f&&x.t===t);if(m)return m}
+  }
+  return CX.think(st,1500);
 }
 function chAfterPlayer(){
   const st=ch.st;
   if(!CX.legal(st).length)return chEnd(CX.inCheck(st,"b")?"win":"draw");
   ch.busy=true;chStatus(`${ch.model} is thinking…`);
-  setTimeout(()=>{
+  setTimeout(async()=>{
     if(ch.over)return;
-    const m=CX.think(ch.st,650);ch.st=CX.make(ch.st,m);ch.last=m;
+    const m=await botMove(ch.st);if(ch.over)return;ch.st=CX.make(ch.st,m);ch.last=m;
     chPromote();drawChess();
     if(!CX.legal(ch.st).length)return chEnd(CX.inCheck(ch.st,"w")?"lose":"draw");
     ch.busy=false;chStatus(CX.inCheck(ch.st,"w")?"Check! Your move.":"Your move.");

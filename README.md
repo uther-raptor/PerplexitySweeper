@@ -21,3 +21,7 @@ When a player reaches the final fade to black, the browser records it in local s
 - The page says this in a short notice, and its "Forget me" link deletes the caller's entry and local flag.
 
 Endpoints: `GET /api/status`, `POST /api/extinct`, `POST /api/forget`.
+
+## Chess engine
+
+The last-ditch chess game is played by [Fairy-Stockfish](https://github.com/fairy-stockfish/fairy-stockfish.wasm) (`public/engine/`, GPL-3.0, see `public/engine/Copying.txt`), configured with a custom variant whose four extra pieces match the game's rules. It needs `SharedArrayBuffer`, so `public/_headers` makes the site cross-origin isolated. Where that isn't available (for example inside a Claude artifact) a small built-in engine with a forced-mate search plays instead.
