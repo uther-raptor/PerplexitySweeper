@@ -94,6 +94,7 @@ body{margin:0;min-height:100vh;background:var(--desk);font:13px/1.4 Tahoma,Verda
 #forever{position:fixed;inset:0;background:#000;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;color:#ddd;font:18px/1.5 "Courier New",ui-monospace,monospace}
 #forever[hidden]{display:none}
 .privacy{position:fixed;left:0;right:0;bottom:0;margin:0;padding:4px 12px;background:rgba(0,40,40,.85);border-top:1px solid #004c4c;color:#9fcaca;font-size:11px;line-height:1.4;text-align:center;z-index:4}
+#priv{z-index:30}#priv .win{width:min(520px,94vw)}#privM{line-height:1.45;font-size:13px;max-height:min(62vh,520px);overflow:auto;padding-right:6px}#privM p{margin:0 0 10px}#privM b{display:block;margin-bottom:2px}
 body{padding-bottom:56px}.privacy a,#forever .privacy a{color:inherit}
 #forever .privacy{color:#777;font:12px/1.45 Tahoma,Verdana,sans-serif;position:absolute;bottom:18px;left:0;right:0;margin:0 auto;padding:0 16px}
 #forever p{margin:0}#forever a{color:#ffcc33;font-size:16px}#forever a:focus-visible{outline:1px dotted #ffcc33;outline-offset:4px}
@@ -118,14 +119,22 @@ body{padding-bottom:56px}.privacy a,#forever .privacy a{color:inherit}
 </div>
 
 <p class="blurb">Attempt to safely navigate the singularity. Unfortunately, given the state of safety research, your only guide are the log-perplexity values of models.</p>
-<p class="privacy">Privacy: if humanity goes extinct on your watch, this site stores a salted hash of your IP address (never the address itself) for 30 days so the extinction sticks. Nothing else is collected and nothing is shared. <a href="#" class="forget">Forget me</a></p>
+<p class="privacy"><a href="#" class="privOpen">Privacy information notice.</a></p>
 <div class="chess" id="chess"><div class="win cwin"><div class="title"><span id="chT">Last-ditch defense</span></div>
   <div class="cbody"><div class="sunk"><div id="cb"></div></div>
   <div class="cside"><div id="chS" class="sunk" role="status"></div><ul id="chL" class="sunk"></ul>
   <div class="cacts"><button class="btn" id="chResign">Resign</button></div></div></div></div></div>
 <div class="dyson" id="dyson" aria-live="polite"><pre id="dyPre" aria-hidden="true"></pre><div id="dyCap"></div><div id="dyEnd" hidden>click to continue</div></div>
 <div id="dyFade"></div>
-<div id="forever" hidden><p>Extinction is forever.<br>Pause AI now.</p><a href="https://pauseai.info" target="_blank" rel="noopener">PauseAI Global</a><p class="privacy">Privacy: if humanity goes extinct on your watch, this site stores a salted hash of your IP address (never the address itself) for 30 days so the extinction sticks. Nothing else is collected and nothing is shared. <a href="#" class="forget">Forget me</a></p></div>
+<div id="forever" hidden><p>Extinction is forever.<br>Pause AI now.</p><a href="https://pauseai.info" target="_blank" rel="noopener">PauseAI Global</a><p class="privacy"><a href="#" class="privOpen">Privacy information notice.</a></p></div>
+<div class="dlg" id="priv" role="dialog" aria-modal="true" aria-labelledby="privT"><div class="win"><div class="title"><span id="privT">Privacy information notice</span></div><div class="body"><div id="privM">
+<p><b>What we store</b>If humanity goes extinct on your watch (you lose or give up), the site remembers it so that you see the "Extinction is forever" screen when you come back. To do that, our server stores a keyed hash (HMAC-SHA256) of your IP address, made with a secret random key that never leaves the server. Your IP address itself is never stored, and the hash can't practically be turned back into it. Your browser also keeps a small "ps-extinct" flag in its local storage.</p>
+<p><b>How long</b>The hash is deleted automatically after 30 days. The browser flag stays until you clear this site's data or press "Forget me".</p>
+<p><b>Why</b>Remembering an extinction is the point of the game's ending. We rely on legitimate interest (GDPR Art. 6(1)(f)) and keep the data to the minimum this needs.</p>
+<p><b>What we don't do</b>No cookies, accounts, analytics, ads or trackers, and no third-party fonts or scripts. Nothing is sold or shared. Playing the game without losing stores nothing at all.</p>
+<p><b>Hosting</b>The site runs on Cloudflare Workers. Like any web host, Cloudflare processes your IP address to deliver the page, under its own privacy policy.</p>
+<p><b>Your rights</b>Press "Forget me" to delete the stored hash and the browser flag immediately. You also have the rights to access, erasure and objection, and to complain to your data protection authority.</p>
+</div></div><div class="acts"><button class="btn forget">Forget me</button><button class="btn" id="privClose">Close</button></div></div></div>
 <div class="dlg" id="dlg"><div class="win"><div class="title"><span id="dlgT">PerplexitySweeper</span></div><div class="body"><div id="dlgI"></div><div id="dlgM"></div></div><div class="acts" id="dlgActs"></div></div></div>
 
 <script>
@@ -747,6 +756,11 @@ newGame();
 const showForever=()=>{stop();$("forever").hidden=false;document.documentElement.style.overflow="hidden"};
 if(store.get("ps-extinct")==="1")showForever();
 else fetch("/api/status",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(d=>{if(d&&d.extinct){store.set("ps-extinct","1");showForever()}}).catch(()=>{});
+const privShow=v=>{$("priv").classList.toggle("show",v);if(v)$("privClose").focus()};
+document.addEventListener("click",e=>{if(e.target.closest(".privOpen")){e.preventDefault();privShow(true)}});
+$("privClose").addEventListener("click",()=>privShow(false));
+$("priv").addEventListener("click",e=>{if(e.target.id==="priv")privShow(false)});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")privShow(false)});
 document.addEventListener("click",e=>{const a=e.target.closest(".forget");if(!a)return;e.preventDefault();
   try{localStorage.removeItem("ps-extinct")}catch(err){}
   fetch("/api/forget",{method:"POST"}).catch(()=>{}).finally(()=>location.reload())});
