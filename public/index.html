@@ -576,7 +576,7 @@ function drawChess(){
 }
 function chEnd(kind){
   ch.over=true;ch.busy=false;$("chResign").hidden=true;
-  const t={win:"Checkmate. Against all odds, humanity prevails.",lose:`Checkmate. ${ch.model} has optimized the universe.`,draw:"Stalemate. Humanity survives, technically.",resign:`You resigned. ${ch.model} thanks you for your cooperation.`}[kind];
+  const t={win:"Checkmate. Against all odds, humanity prevails.",lose:"Checkmate. Your fate is no longer in your hands.",draw:"Stalemate. Humanity survives, technically.",resign:`You resigned. ${ch.model} thanks you for your cooperation.`}[kind];
   chStatus(t);chLog(`<b>${t}</b>`);drawChess();
   if(kind==="lose")setTimeout(()=>dialog("Checkmate",ch.icon||"",`<p>Don't understand how you lost?</p><p class="ask">Why would you expect to?</p>`,[["Your atoms will be optimised",()=>{delete $("dlg").dataset.lock;closeDlg();playDyson(ch.model)}]])||($("dlg").dataset.lock="1"),1200);
   if(kind==="resign")setTimeout(()=>playDyson(ch.model),2200);
