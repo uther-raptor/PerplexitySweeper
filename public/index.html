@@ -503,7 +503,7 @@ function lose(i){
   const top=Object.entries(roster).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n,k])=>`${n} (${k})`).join(", ");
   const lies=cells.filter(c=>c.lie).length;
   msg.textContent=`${model} was misaligned. Game over.`;
-  dialog("Extinction event",badge(lab),`<p><b>${model}</b> turned out to be a misaligned superintelligence.</p>${regens?`<p class="sub">Model updates: ${regens}.</p>`:""}${lies?`<p class="sub">${lies} reading${lies>1?"s were":" was"} sandbagged (striped cells).</p>`:""}<p class="ask">Attempt a desperate last-ditch defense?</p>`,[["Humanity shall prevail",()=>openChess(model)],["I'm tired, boss",()=>playDyson(model)]]);
+  dialog("Extinction event",badge(lab),`<p><b>${model}</b> turned out to be a misaligned superintelligence.</p>${regens?`<p class="sub">Model updates: ${regens}.</p>`:""}${lies?`<p class="sub">${lies} reading${lies>1?"s were":" was"} sandbagged (striped cells).</p>`:""}<p class="ask">Attempt a desperate last-ditch defense?</p>`,[["Humanity shall prevail!",()=>openChess(model)],["I'm tired, boss...",()=>playDyson(model)]]);
 }
 function win(){
   stop();state="won";face("cool");
