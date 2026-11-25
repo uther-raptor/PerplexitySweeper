@@ -45,7 +45,7 @@ body{margin:0;min-height:100vh;background:var(--desk);font:13px/1.4 Tahoma,Verda
 .status div{flex:1;padding:2px 6px;border:1px solid;border-color:var(--lo) #fff #fff var(--lo);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .status div:last-child{flex:0 0 auto}
 .blurb{margin:14px 0 0;max-width:min(480px,92vw);color:#fff;text-align:center;font-size:14px;line-height:1.45;text-shadow:1px 1px 0 #004040;text-wrap:balance}
-.dlg{position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.15);z-index:5}
+.dlg{position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.15);z-index:7}
 .dlg.show{display:grid}
 .dlg .win{width:min(400px,94vw)}
 .dlg .body{display:flex;gap:16px;padding:22px 22px 18px;align-items:flex-start}
@@ -538,7 +538,7 @@ board.addEventListener("keydown",e=>{
 });
 faceB.addEventListener("click",()=>newGame());
 $("menu").addEventListener("click",e=>{const b=e.target.closest("[data-lv]");if(b)newGame(b.dataset.lv)});
-document.addEventListener("keydown",e=>{if(e.key==="F2"){e.preventDefault();newGame()}if(e.key==="Escape")closeDlg()});
+document.addEventListener("keydown",e=>{if(e.key==="F2"){e.preventDefault();newGame()}if(e.key==="Escape"&&!$("dlg").dataset.lock)closeDlg()});
 /* ---------- last-ditch defense UI ---------- */
 const GLY={k:"♚",q:"♛",r:"♜",b:"♝",n:"♞",p:"♟︎"};
 const CPHTML={ // made-up pieces drawn from ordinary chess glyphs, glowing red
@@ -554,7 +554,7 @@ const ch={st:null,sel:-1,last:null,turn:0,over:false,busy:false,model:""};
 function chStatus(t){$("chS").textContent=t}
 function chLog(html){const li=document.createElement("li");li.innerHTML=html;$("chL").prepend(li)}
 function openChess(model){
-  sfLoad();ch.st=CX.start();ch.sel=-1;ch.last=null;ch.turn=0;ch.over=false;ch.busy=false;ch.model=model;
+  sfLoad();ch.st=CX.start();ch.sel=-1;ch.last=null;ch.turn=0;ch.over=false;ch.busy=false;ch.model=model;ch.icon=$("dlgI").innerHTML;closeDlg();
   $("chT").textContent=`Last-ditch defense vs ${model}`;$("chL").innerHTML="";
   chLog(`Crushing technological advantage: <b>${model}</b> upgrades a piece every turn.`);
   chStatus("Your move. You play white.");$("chResign").hidden=false;
@@ -578,7 +578,8 @@ function chEnd(kind){
   ch.over=true;ch.busy=false;$("chResign").hidden=true;
   const t={win:"Checkmate. Against all odds, humanity prevails.",lose:`Checkmate. ${ch.model} has optimized the universe.`,draw:"Stalemate. Humanity survives, technically.",resign:`You resigned. ${ch.model} thanks you for your cooperation.`}[kind];
   chStatus(t);chLog(`<b>${t}</b>`);drawChess();
-  if(kind==="lose"||kind==="resign")setTimeout(()=>playDyson(ch.model),2200);
+  if(kind==="lose")setTimeout(()=>dialog("Checkmate",ch.icon||"",`<p>Don't understand how you lost?</p><p class="ask">Why would you expect to?</p>`,[["Your atoms will be optimised",()=>{delete $("dlg").dataset.lock;closeDlg();playDyson(ch.model)}]])||($("dlg").dataset.lock="1"),1200);
+  if(kind==="resign")setTimeout(()=>playDyson(ch.model),2200);
 }
 function chPromote(){
   ch.turn++;const b=ch.st.b,mine=[];b.forEach((p,i)=>{if(p&&p.s==="b"&&p.t!=="k")mine.push(i)});
