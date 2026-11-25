@@ -727,9 +727,9 @@ function dyFrame(now){
       for(let k=5;k>=1;k--){const rr=r-k*(0.7+0.45*tt);if(rr>q.r0)put(sx+2*rr*ux,sy+rr*uy,k>2?".":"-","trail")}
       put(sx+2*r*ux,sy+r*uy,"@","probe")}}
   // captions
-  const cap=t<3?"Initiating planetary disassembly…":t<9?`Converting Earth into computronium for ${DY.model}…`:t<13.5?"Assembling Dyson swarm…":"The future shall continue... cold, meaningless, humanity long forgotten";
+  const cap=t<3?"Initiating planetary disassembly…":t<9?`Converting Earth into computronium for ${DY.model}…`:t<13.5?"Assembling Dyson swarm…":"The future shall continue... cold, meaningless, humanity long forgotten...";
   DY.t=t;
-  const capNow=t2<0?cap:t2<5.5?"Von Neumann probes departing for the stars…":"";
+  const capNow=t2<0?cap:t2<5.5?"A hollow corruption will spread through the great expanse, until all the stars grow dark...":"";
   if($("dyCap").textContent!==capNow)$("dyCap").textContent=capNow;
   // paint as colour runs
   let html="";for(let y=0;y<H;y++){let cur=null,buf="";for(let x=0;x<W;x++){const k=co[y][x];if(k!==cur){if(buf)html+=cur?`<span class="${cur}">${buf}</span>`:buf;cur=k;buf=""}const c=ch[y][x];buf+=c==="<"?"&lt;":c}
