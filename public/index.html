@@ -565,6 +565,7 @@ function chLog(html){const li=document.createElement("li");li.innerHTML=html;$("
 function openChess(model){
   sfLoad();ch.st=CX.start();ch.sel=-1;ch.last=null;ch.turn=0;ch.over=false;ch.busy=false;ch.model=model;ch.icon=$("dlgI").innerHTML;closeDlg();
   $("chT").textContent=`Last-ditch defense vs ${model}`;$("chL").innerHTML="";
+  chLog("Think the game is bugged? Consider that your model of reality might be incomplete.");
   chLog(`Crushing technological advantage: <b>${model}</b> upgrades a piece every turn.`);
   chStatus("Your move. You play white.");$("chResign").hidden=false;
   $("dlg").classList.remove("show");$("chess").classList.add("show");drawChess();
