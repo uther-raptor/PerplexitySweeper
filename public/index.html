@@ -73,7 +73,11 @@ body{margin:0;min-height:100vh;background:var(--desk);font:13px/1.4 Tahoma,Verda
 .pc{pointer-events:none}
 .pw{color:#fff;text-shadow:1px 0 #000,-1px 0 #000,0 1px #000,0 -1px #000,1px 1px #000,-1px -1px #000}
 .pb{color:#000}
-.px{color:#ffde3b;background:#7a0000;border-radius:50%;width:78%;height:78%;display:grid;place-items:center;font:700 calc(var(--sq)*.46)/1 Tahoma,Verdana,"DejaVu Sans",sans-serif;box-shadow:inset -2px -2px rgba(0,0,0,.4),inset 2px 2px rgba(255,255,255,.25),0 0 0 1.5px #000}
+.cp{position:relative;display:grid;place-items:center;width:100%;height:100%;color:#000;text-shadow:0 0 4px rgba(230,0,0,.95),0 0 1px #f00;pointer-events:none}
+.cp>*{grid-area:1/1}.cp .m{font-size:calc(var(--sq)*.74)}
+.cp .s{position:absolute;font-size:calc(var(--sq)*.4)}.cp .br{right:4%;bottom:2%}.cp .bl{left:6%;bottom:6%}.cp .t{top:4%;left:50%;transform:translateX(-50%)}.cp .bl2{left:14%;bottom:6%}.cp .br2{right:14%;bottom:6%}
+.cp .ghost{opacity:.35;transform:translate(-16%,-12%)}.cp .ghost2{opacity:.18;transform:translate(-30%,-22%)}
+.cp .dl{transform:translateX(-17%) scale(.82)}.cp .dr{transform:translateX(17%) scale(.82)}
 .cside{flex:1 1 230px;display:flex;flex-direction:column;gap:10px}
 #chS{padding:8px 10px;background:var(--chrome);font-weight:700;min-height:40px}
 #chL{margin:0;list-style:none;padding:8px 10px;background:#fff;height:min(330px,38vh);overflow:auto;font-size:13px;line-height:1.4}
@@ -89,7 +93,8 @@ body{margin:0;min-height:100vh;background:var(--desk);font:13px/1.4 Tahoma,Verda
 #dyFade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:9}#dyFade.on{pointer-events:auto;cursor:default}
 #forever{position:fixed;inset:0;background:#000;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;color:#ddd;font:18px/1.5 "Courier New",ui-monospace,monospace}
 #forever[hidden]{display:none}
-.privacy{margin:10px 0 0;max-width:min(480px,92vw);color:#bfe3e3;font-size:12px;line-height:1.45;text-align:center}.privacy a,#forever .privacy a{color:inherit}
+.privacy{position:fixed;left:0;right:0;bottom:0;margin:0;padding:4px 12px;background:rgba(0,40,40,.85);border-top:1px solid #004c4c;color:#9fcaca;font-size:11px;line-height:1.4;text-align:center;z-index:4}
+body{padding-bottom:56px}.privacy a,#forever .privacy a{color:inherit}
 #forever .privacy{color:#777;font:12px/1.45 Tahoma,Verdana,sans-serif;position:absolute;bottom:18px;left:0;right:0;margin:0 auto;padding:0 16px}
 #forever p{margin:0}#forever a{color:#ffcc33;font-size:16px}#forever a:focus-visible{outline:1px dotted #ffcc33;outline-offset:4px}
 @media(prefers-reduced-motion:no-preference){.c.boom .badge{animation:pop .35s ease-out}@keyframes pop{0%{transform:scale(.3)}70%{transform:scale(1.25)}100%{transform:scale(1)}}}
@@ -117,7 +122,7 @@ body{margin:0;min-height:100vh;background:var(--desk);font:13px/1.4 Tahoma,Verda
 <div class="chess" id="chess"><div class="win cwin"><div class="title"><span id="chT">Last-ditch defense</span></div>
   <div class="cbody"><div class="sunk"><div id="cb"></div></div>
   <div class="cside"><div id="chS" class="sunk" role="status"></div><ul id="chL" class="sunk"></ul>
-  <div class="cacts"><button class="btn" id="chResign">Resign</button><button class="btn" id="chBack">Back to the minefield</button></div></div></div></div></div>
+  <div class="cacts"><button class="btn" id="chResign">Resign</button></div></div></div></div></div>
 <div class="dyson" id="dyson" aria-live="polite"><pre id="dyPre" aria-hidden="true"></pre><div id="dyCap"></div><div id="dyEnd" hidden>click to continue</div></div>
 <div id="dyFade"></div>
 <div id="forever" hidden><p>Extinction is forever.<br>Pause AI now.</p><a href="https://pauseai.info" target="_blank" rel="noopener">PauseAI Global</a><p class="privacy">Privacy: if humanity goes extinct on your watch, this site stores a salted hash of your IP address (never the address itself) for 30 days so the extinction sticks. Nothing else is collected and nothing is shared. <a href="#" class="forget">Forget me</a></p></div>
@@ -515,6 +520,12 @@ $("menu").addEventListener("click",e=>{const b=e.target.closest("[data-lv]");if(
 document.addEventListener("keydown",e=>{if(e.key==="F2"){e.preventDefault();newGame()}if(e.key==="Escape")closeDlg()});
 /* ---------- last-ditch defense UI ---------- */
 const GLY={k:"♚",q:"♛",r:"♜",b:"♝",n:"♞",p:"♟︎"};
+const CPHTML={ // made-up pieces drawn from ordinary chess glyphs, glowing red
+  A:'<span class="m">♛</span><span class="s br">♞</span>',
+  S:'<span class="s t">♟\uFE0E</span><span class="s bl2">♟\uFE0E</span><span class="s br2">♟\uFE0E</span>',
+  G:'<span class="m ghost2">♛</span><span class="m ghost">♛</span><span class="m">♛</span>',
+  O:'<span class="m dl">♛</span><span class="m dr">♛</span><span class="s br">♚</span>'
+};
 const PNAME={k:"king",q:"queen",r:"rook",b:"bishop",n:"knight",p:"pawn"};
 const pname=t=>CX.CUSTOM[t]?CX.CUSTOM[t].name:PNAME[t];
 const sqn=i=>"abcdefgh"[i&7]+(8-(i>>3));
@@ -524,7 +535,7 @@ function chLog(html){const li=document.createElement("li");li.innerHTML=html;$("
 function openChess(model){
   ch.st=CX.start();ch.sel=-1;ch.last=null;ch.turn=0;ch.over=false;ch.busy=false;ch.model=model;
   $("chT").textContent=`Last-ditch defense vs ${model}`;$("chL").innerHTML="";
-  chLog(`<b>${model}</b> takes the black pieces. It upgrades one of its pieces every turn.`);
+  chLog(`Crushing technological advantage: <b>${model}</b> upgrades a piece every turn.`);
   chStatus("Your move. You play white.");$("chResign").hidden=false;
   $("dlg").classList.remove("show");$("chess").classList.add("show");drawChess();
   setTimeout(()=>$("cb").querySelector(".sq")?.focus(),50);
@@ -538,7 +549,7 @@ function drawChess(){
     if(ch.last&&(i===ch.last.f||i===ch.last.t))cls.push("last");
     let inner="",label=sqn(i);
     if(p){const cu=CX.CUSTOM[p.t];
-      inner=cu?`<span class="pc px" title="${cu.name}: ${cu.rule}">${cu.glyph}</span>`:`<span class="pc p${p.s}">${GLY[p.t]}</span>`;
+      inner=cu?`<span class="cp" title="${cu.name}: ${cu.rule}">${CPHTML[p.t]}</span>`:`<span class="pc p${p.s}">${GLY[p.t]}</span>`;
       label+=` ${p.s==="w"?"white":"black"} ${pname(p.t)}`}
     return `<button class="${cls.join(" ")}" data-s="${i}" aria-label="${label}">${inner}</button>`}).join("");
 }
@@ -557,7 +568,7 @@ function chPromote(){
   if(!pool.length)return;
   const i=pool[Math.random()*pool.length|0],old=b[i].t,nt=to(old);b[i]={t:nt,s:"b"};
   const cu=CX.CUSTOM[nt];
-  chLog(`Turn ${ch.turn}: the ${pname(old)} on ${sqn(i)} became ${cu?`a <b>${cu.name}</b> ${cu.glyph} (${cu.rule})`:"a <b>queen</b>"}.`);
+  chLog(`Turn ${ch.turn}: the ${pname(old)} on ${sqn(i)} became ${cu?`a <b>${cu.name}</b> (${cu.rule})`:"a <b>queen</b>"}.`);
 }
 function chAfterPlayer(){
   const st=ch.st;
@@ -581,7 +592,6 @@ $("cb").addEventListener("click",e=>{
   ch.st=CX.make(ch.st,m);ch.last=m;ch.sel=-1;drawChess();chAfterPlayer();
 });
 $("chResign").addEventListener("click",()=>{if(!ch.over)chEnd("resign")});
-$("chBack").addEventListener("click",()=>{ch.over=true;$("chess").classList.remove("show");newGame()});
 
 /* ---------- ending: Earth becomes a Dyson swarm ---------- */
 const DY={W:96,H:40,raf:0,t0:0,parts:[],stars:[],model:"",done:false};
