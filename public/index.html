@@ -71,6 +71,11 @@ body{margin:0;min-height:100vh;background:var(--desk);font:13px/1.4 Tahoma,Verda
 .sq.cap{box-shadow:inset 0 0 0 3px #000080}
 .sq:focus-visible{outline:2px dotted #000;outline-offset:-4px}
 .pc{pointer-events:none}
+.cp{position:relative;display:grid;place-items:center;width:100%;height:100%;color:#000;text-shadow:0 0 4px rgba(230,0,0,.95),0 0 1px #f00;pointer-events:none}
+.cp>*{grid-area:1/1}.cp .m{font-size:calc(var(--sq)*.74)}
+.cp .s{position:absolute;font-size:calc(var(--sq)*.4)}.cp .br{right:4%;bottom:2%}.cp .bl{left:6%;bottom:6%}.cp .t{top:4%;left:50%;transform:translateX(-50%)}.cp .bl2{left:14%;bottom:6%}.cp .br2{right:14%;bottom:6%}
+.cp .ghost{opacity:.35;transform:translate(-16%,-12%)}.cp .ghost2{opacity:.18;transform:translate(-30%,-22%)}
+.cp .dl{transform:translateX(-17%) scale(.82)}.cp .dr{transform:translateX(17%) scale(.82)}
 .pw{color:#fff;text-shadow:1px 0 #000,-1px 0 #000,0 1px #000,0 -1px #000,1px 1px #000,-1px -1px #000}
 .pb{color:#000}
 .cside{flex:1 1 230px;display:flex;flex-direction:column;gap:10px}
@@ -536,6 +541,12 @@ $("menu").addEventListener("click",e=>{const b=e.target.closest("[data-lv]");if(
 document.addEventListener("keydown",e=>{if(e.key==="F2"){e.preventDefault();newGame()}if(e.key==="Escape")closeDlg()});
 /* ---------- last-ditch defense UI ---------- */
 const GLY={k:"♚",q:"♛",r:"♜",b:"♝",n:"♞",p:"♟︎"};
+const CPHTML={ // made-up pieces drawn from ordinary chess glyphs, glowing red
+  A:'<span class="m">♛</span><span class="s br">♞</span>',
+  S:'<span class="s t">♟\uFE0E</span><span class="s bl2">♟\uFE0E</span><span class="s br2">♟\uFE0E</span>',
+  G:'<span class="m ghost2">♛</span><span class="m ghost">♛</span><span class="m">♛</span>',
+  O:'<span class="m dl">♛</span><span class="m dr">♛</span><span class="s br">♚</span>'
+};
 const PNAME={k:"king",q:"queen",r:"rook",b:"bishop",n:"knight",p:"pawn"};
 const pname=t=>CX.CUSTOM[t]?CX.CUSTOM[t].name:PNAME[t];
 const sqn=i=>"abcdefgh"[i&7]+(8-(i>>3));
@@ -559,8 +570,8 @@ function drawChess(){
     if(ch.last&&(i===ch.last.f||i===ch.last.t))cls.push("last");
     let inner="",label=sqn(i);
     if(p){const cu=CX.CUSTOM[p.t];
-      const look=p.look||p.t;inner=`<span class="pc p${p.s}">${GLY[look]||GLY.q}</span>`;
-      label+=` ${p.s==="w"?"white":"black"} ${pname(look)}`}
+      const look=p.look||p.t;inner=look[0]==="c"?`<span class="cp">${CPHTML[look[1]]}</span>`:`<span class="pc p${p.s}">${GLY[look]||GLY.q}</span>`;
+      label+=` ${p.s==="w"?"white":"black"} ${look[0]==="c"?"unknown piece":pname(look)}`}
     return `<button class="${cls.join(" ")}" data-s="${i}" aria-label="${label}">${inner}</button>`}).join("");
 }
 function chEnd(kind){
@@ -576,7 +587,13 @@ function chPromote(){
   else{const plain=mine.filter(i=>!CX.CUSTOM[b[i].t]);pool=plain.length?plain:mine.filter(i=>b[i].t!=="O");
     to=old=>{const up=Object.keys(CX.CUSTOM).filter(k=>CX.VAL[k]>CX.VAL[old]);return up[Math.random()*up.length|0]}}
   if(!pool.length)return;
-  const i=pool[Math.random()*pool.length|0],old=b[i].t,nt=to(old);b[i]={t:nt,s:"b",look:b[i].look||old};
+  const i=pool[Math.random()*pool.length|0],old=b[i].t,nt=to(old);
+  // disguise: sometimes keep the old look; otherwise show a new look, which for made-up pieces is sometimes another made-up piece's design
+  let look;const cus=Object.keys(CX.CUSTOM);
+  if(Math.random()<0.4)look=b[i].look||old;
+  else if(nt==="q")look="q";
+  else look="c"+(Math.random()<0.7?nt:cus.filter(k=>k!==nt)[Math.random()*3|0]);
+  b[i]={t:nt,s:"b",look};
   // silent on purpose: the player has to notice
 }
 /* Fairy-Stockfish (GPL-3.0, bundled in /engine) plays black when the page is cross-origin isolated;
