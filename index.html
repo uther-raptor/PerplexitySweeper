@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PerplexitySweeper</title>
+
+<style>
+/* VOICE: deadpan 1995 desktop utility that happens to be about AI safety evals
+   IDEA: a bevelled grey game window on a teal desktop, the board is the whole page
+   PICTURE: the minefield itself, lab badges as round enamel pins
+   COLOUR and TYPE: teal desktop, #c0c0c0 chrome, navy title bar, LED red; Tahoma/Verdana UI, pixel font for scores
+   LAYOUT: one centred window, menu bar, counters + face, board, status bar */
+:root{color-scheme:light dark;--desk:#008080;--chrome:#c0c0c0;--hi:#fff;--lo:#7b7b7b;--dk:#000}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;min-height:100vh;background:var(--desk);font:13px/1.4 Tahoma,Verdana,"Segoe UI",sans-serif;color:#000;display:flex;flex-direction:column;align-items:center;padding:clamp(12px,4vw,48px) 8px;overflow-x:clip;-webkit-user-select:none;user-select:none}
+.win{background:var(--chrome);border:2px solid;border-color:#dfdfdf #000 #000 #dfdfdf;box-shadow:inset 1px 1px #fff,inset -1px -1px var(--lo),6px 6px 0 rgba(0,0,0,.25);padding:3px;max-width:100%}
+.title{background:linear-gradient(90deg,#000080,#1084d0);color:#fff;font-weight:700;padding:3px 4px 3px 6px;display:flex;align-items:center;gap:6px}
+.title svg{flex:none}.title span{flex:1}
+.tb{width:18px;height:16px;background:var(--chrome);border:1px solid;border-color:#fff #000 #000 #fff;box-shadow:inset -1px -1px var(--lo);font:700 11px/12px Tahoma,sans-serif;color:#000;text-align:center;padding:0}
+.menu{display:flex;flex-wrap:wrap;gap:2px;padding:2px 0}
+.menu button{background:none;border:1px solid transparent;font:inherit;padding:3px 8px;cursor:pointer;color:#000}
+.menu button:hover,.menu button:focus-visible{background:#000080;color:#fff;outline:none}
+.menu button[aria-pressed=true]{border-color:var(--lo) #fff #fff var(--lo)}
+.menu button u{text-decoration:underline}
+.frame{border:3px solid;border-color:#fff var(--lo) var(--lo) #fff;padding:6px;background:var(--chrome)}
+.sunk{border:2px solid;border-color:var(--lo) #fff #fff var(--lo)}
+.head{display:flex;align-items:center;justify-content:space-between;padding:4px 5px;margin-bottom:6px}
+.led{background:#000;display:flex;padding:1px;border:1px solid;border-color:var(--lo) #fff #fff var(--lo)}
+.led svg{display:block}
+#face{width:34px;height:34px;padding:0;background:var(--chrome);border:2px solid;border-color:#fff var(--lo) var(--lo) #fff;cursor:pointer;display:grid;place-items:center}
+#face:active{border-color:var(--lo) #fff #fff var(--lo)}
+#face:focus-visible{outline:1px dotted #000;outline-offset:-5px}
+.scroll{overflow-x:auto;max-width:calc(100vw - 40px)}
+#board{display:grid;width:max-content;touch-action:manipulation}
+.c{width:28px;height:28px;padding:0;margin:0;background:var(--chrome);border:3px solid;border-color:#fff var(--lo) var(--lo) #fff;display:grid;place-items:center;font:700 10.5px/1 Tahoma,Verdana,"Segoe UI",sans-serif;cursor:default;color:#000;letter-spacing:-.4px}
+.c:focus-visible{outline:1px dotted #000;outline-offset:-4px}
+.c.o{border:0;border-right:1px solid var(--lo);border-bottom:1px solid var(--lo)}
+.c.boom{background:#ff2020}
+.c.lied{background:repeating-linear-gradient(45deg,#c0c0c0 0 4px,#e7c6c6 4px 8px)}
+.head.flash{animation:fl .6s steps(2) 2}@keyframes fl{50%{background:#000080}}
+.c.press{border:0;border-right:1px solid var(--lo);border-bottom:1px solid var(--lo)}
+.k0{color:#7b7b7b}.k1{color:#0000ff}.k2{color:#007b00}.k3{color:#ff0000}.k4{color:#00007b}.k5{color:#7b0000}.k6{color:#007b7b}.k7{color:#000}.k8{color:#505050}
+.badge{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:700 8px/1 Verdana,Tahoma,sans-serif;letter-spacing:-.4px;border:1.5px solid #000;box-shadow:inset -2px -2px rgba(0,0,0,.28),inset 2px 2px rgba(255,255,255,.35)}
+.badge svg{width:14px;height:14px;display:block}
+.x{position:relative}.x::after{content:"";position:absolute;inset:3px;background:linear-gradient(45deg,transparent 44%,#e00 44% 56%,transparent 56%),linear-gradient(-45deg,transparent 44%,#e00 44% 56%,transparent 56%)}
+.status{display:flex;gap:3px;margin-top:3px;width:0;min-width:100%}
+.status div{flex:1;padding:2px 6px;border:1px solid;border-color:var(--lo) #fff #fff var(--lo);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status div:last-child{flex:0 0 auto}
+.blurb{margin:14px 0 0;max-width:min(480px,92vw);color:#fff;text-align:center;font-size:14px;line-height:1.45;text-shadow:1px 1px 0 #004040;text-wrap:balance}
+.dlg{position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.15);z-index:5}
+.dlg.show{display:grid}
+.dlg .win{width:min(400px,94vw)}
+.dlg .body{display:flex;gap:16px;padding:22px 22px 18px;align-items:flex-start}
+#dlgI{flex:none;padding-top:2px}#dlgI .badge{width:36px;height:36px}#dlgI .badge svg{width:22px;height:22px}
+#dlgM{line-height:1.45}#dlgM p{margin:0 0 10px}#dlgM p:last-child{margin:0}#dlgM .sub{color:#333}
+.dlg .acts{display:flex;justify-content:center;gap:12px;padding:0 16px 18px}
+.btn{min-width:76px;min-height:26px;background:var(--chrome);border:2px solid;border-color:#fff #000 #000 #fff;box-shadow:inset -1px -1px var(--lo);font:inherit;cursor:pointer;color:#000}
+.btn:active{border-color:#000 #fff #fff #000}
+.btn:focus-visible{outline:1px dotted #000;outline-offset:-5px}
+.ask{margin-top:14px!important;font-weight:700}
+.dlg .acts .btn{padding:0 12px}
+.chess{position:fixed;inset:0;display:none;background:rgba(0,40,40,.55);z-index:6;overflow:auto;padding:16px 8px}
+.chess.show{display:grid;place-items:center}
+.cwin{width:min(780px,97vw)}
+.cbody{display:flex;flex-wrap:wrap;gap:12px;padding:10px;align-items:flex-start}
+#cb{--sq:clamp(34px,10.6vw,54px);display:grid;grid-template-columns:repeat(8,var(--sq));flex:none}
+.sq{width:var(--sq);height:var(--sq);border:0;padding:0;margin:0;display:grid;place-items:center;position:relative;cursor:pointer;font:400 calc(var(--sq)*.74)/1 "Segoe UI Symbol","DejaVu Sans","Arial Unicode MS",serif}
+.sq.l{background:#dedede}.sq.d{background:#8c8c8c}
+.sq.last{background:#a9b6d6}.sq.d.last{background:#6f7fa8}
+.sq.sel{background:#000080}
+.sq.chk{background:#ff3b3b}
+.sq.tgt::after{content:"";position:absolute;width:26%;height:26%;border-radius:50%;background:rgba(0,0,128,.6)}
+.sq.cap{box-shadow:inset 0 0 0 3px #000080}
+.sq:focus-visible{outline:2px dotted #000;outline-offset:-4px}
+.pc{pointer-events:none}
+.pw{color:#fff;text-shadow:1px 0 #000,-1px 0 #000,0 1px #000,0 -1px #000,1px 1px #000,-1px -1px #000}
+.pb{color:#000}
+.px{color:#ffde3b;background:#7a0000;border-radius:50%;width:78%;height:78%;display:grid;place-items:center;font:700 calc(var(--sq)*.46)/1 Tahoma,Verdana,"DejaVu Sans",sans-serif;box-shadow:inset -2px -2px rgba(0,0,0,.4),inset 2px 2px rgba(255,255,255,.25),0 0 0 1.5px #000}
+.cside{flex:1 1 230px;display:flex;flex-direction:column;gap:10px}
+#chS{padding:8px 10px;background:var(--chrome);font-weight:700;min-height:40px}
+#chL{margin:0;list-style:none;padding:8px 10px;background:#fff;height:min(330px,38vh);overflow:auto;font-size:13px;line-height:1.4}
+#chL li{margin-bottom:6px}
+.cacts{display:flex;gap:8px;flex-wrap:wrap}
+.dyson{position:fixed;inset:0;display:none;background:#000;z-index:8;flex-direction:column;align-items:center;justify-content:center;gap:14px;cursor:pointer;padding:10px}
+.dyson.show{display:flex}
+#dyPre{margin:0;font:12px/1.1 "Courier New",ui-monospace,Menlo,Consolas,monospace;color:#555;white-space:pre;user-select:none}
+#dyPre .s1{color:#444}#dyPre .s2{color:#bbb}#dyPre .sun{color:#ffcc33}#dyPre .land{color:#4caf50}#dyPre .sea{color:#3a7bd5}#dyPre .hot{color:#ff6a00}#dyPre .panel{color:#c8d2e0}
+#dyCap{color:#ffcc33;font:15px/1.4 "Courier New",ui-monospace,monospace;text-align:center;min-height:1.4em;max-width:90vw}
+#dyEnd{text-align:center;color:#666;font:13px "Courier New",monospace}#dyEnd[hidden]{display:none}
+#dyPre .probe{color:#9ff}#dyPre .trail{color:#2f8f8f}
+#dyFade{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:9}#dyFade.on{pointer-events:auto;cursor:default}
+#forever{position:fixed;inset:0;background:#000;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center;color:#ddd;font:18px/1.5 "Courier New",ui-monospace,monospace}
+#forever[hidden]{display:none}
+#forever p{margin:0}#forever a{color:#ffcc33;font-size:16px}#forever a:focus-visible{outline:1px dotted #ffcc33;outline-offset:4px}
+@media(prefers-reduced-motion:no-preference){.c.boom .badge{animation:pop .35s ease-out}@keyframes pop{0%{transform:scale(.3)}70%{transform:scale(1.25)}100%{transform:scale(1)}}}
+</style></head><body>
+<div class="win" role="application" aria-label="PerplexitySweeper">
+  <div class="title"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="#d97757" stroke="#000"/><text x="8" y="11" font-size="7" font-weight="700" text-anchor="middle" font-family="Verdana" fill="#000">AI</text></svg><span>PerplexitySweeper</span><button class="tb" tabindex="-1" aria-hidden="true">_</button><button class="tb" tabindex="-1" aria-hidden="true">×</button></div>
+  <div class="menu" id="menu">
+    <button data-lv="beginner"><u>B</u>eginner</button>
+    <button data-lv="intermediate"><u>I</u>ntermediate</button>
+    <button data-lv="expert"><u>E</u>xpert</button>
+  </div>
+  <div class="frame">
+    <div class="head sunk">
+      <div class="led" id="mines" aria-label="Lethal models left"></div>
+      <button id="face" aria-label="New game"></button>
+      <div class="led" id="time" aria-label="Seconds"></div>
+    </div>
+    <div class="scroll"><div class="sunk"><div id="board"></div></div></div>
+  </div>
+  <div class="status"><div id="msg">Click a cell to start the eval.</div><div id="best">Best: –</div></div>
+</div>
+
+<p class="blurb">Attempt to safely navigate the singularity. Unfortunately, given the state of safety research, your only guide are the log-perplexity values of models.</p>
+<div class="chess" id="chess"><div class="win cwin"><div class="title"><span id="chT">Last-ditch defense</span></div>
+  <div class="cbody"><div class="sunk"><div id="cb"></div></div>
+  <div class="cside"><div id="chS" class="sunk" role="status"></div><ul id="chL" class="sunk"></ul>
+  <div class="cacts"><button class="btn" id="chResign">Resign</button><button class="btn" id="chBack">Back to the minefield</button></div></div></div></div></div>
+<div class="dyson" id="dyson" aria-live="polite"><pre id="dyPre" aria-hidden="true"></pre><div id="dyCap"></div><div id="dyEnd" hidden>click to continue</div></div>
+<div id="dyFade"></div>
+<div id="forever" hidden><p>Extinction is forever.<br>Pause AI now.</p><a href="https://pauseai.info" target="_blank" rel="noopener">PauseAI Global</a></div>
+<div class="dlg" id="dlg"><div class="win"><div class="title"><span id="dlgT">PerplexitySweeper</span></div><div class="body"><div id="dlgI"></div><div id="dlgM"></div></div><div class="acts" id="dlgActs"></div></div></div>
+
+<script>
+/* ---------- Last-ditch chess: a tiny engine that tolerates made-up pieces ---------- */
+const CX=(()=>{
+const VAL={p:100,n:300,b:320,r:500,q:900,k:20000,A:1200,S:1300,G:1500,O:2000};
+const CUSTOM={
+  A:{name:"Recursive Self-Improver",glyph:"⟳",rule:"moves like a queen and a knight"},
+  S:{name:"Nanoswarm",glyph:"⁂",rule:"jumps to any square within three steps"},
+  G:{name:"Gradient Descender",glyph:"∇",rule:"slides like a queen straight through anything in its way"},
+  O:{name:"Paperclip Maximizer",glyph:"∞",rule:"slides through anything like the Gradient Descender and also jumps two steps anywhere"}
+};
+const D8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]],RK=D8.slice(0,4),BI=D8.slice(4);
+const KN=[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]];
+const on=(r,c)=>r>=0&&r<8&&c>=0&&c<8;
+function start(){
+  const b=Array(64).fill(null),back="rnbqkbnr";
+  for(let c=0;c<8;c++){b[c]={t:back[c],s:"b"};b[8+c]={t:"p",s:"b"};b[48+c]={t:"p",s:"w"};b[56+c]={t:back[c],s:"w"}}
+  return {b,side:"w",ep:-1,cr:{wk:1,wq:1,bk:1,bq:1}};
+}
+/* pseudo-legal moves; att=true lists attacked squares only (pawn diagonals, no castling) */
+function gen(st,side,att){
+  const b=st.b,out=[];
+  const add=(f,t)=>{const q=b[t];if(q&&q.s===side)return false;out.push({f,t});return !q};
+  for(let f=0;f<64;f++){
+    const P=b[f];if(!P||P.s!==side)continue;
+    const r=f>>3,c=f&7,t=P.t;
+    const slide=dirs=>{for(const[dr,dc]of dirs){let rr=r+dr,cc=c+dc;while(on(rr,cc)){add(f,rr*8+cc);if(b[rr*8+cc])break;rr+=dr;cc+=dc}}};
+    const slideThru=dirs=>{for(const[dr,dc]of dirs){let rr=r+dr,cc=c+dc;while(on(rr,cc)){const q=b[rr*8+cc];if(!q||q.s!==side)out.push({f,t:rr*8+cc});rr+=dr;cc+=dc}}};
+    const leap=list=>{for(const[dr,dc]of list){const rr=r+dr,cc=c+dc;if(on(rr,cc)){const q=b[rr*8+cc];if(!q||q.s!==side)out.push({f,t:rr*8+cc})}}};
+    const radius=n=>{for(let dr=-n;dr<=n;dr++)for(let dc=-n;dc<=n;dc++){if(!dr&&!dc)continue;const rr=r+dr,cc=c+dc;if(on(rr,cc)){const q=b[rr*8+cc];if(!q||q.s!==side)out.push({f,t:rr*8+cc})}}};
+    if(t==="p"){
+      const d=side==="w"?-1:1,r1=r+d;
+      for(const dc of[-1,1]){const cc=c+dc;if(!on(r1,cc))continue;const tt=r1*8+cc,q=b[tt];
+        if(att||(q&&q.s!==side)||tt===st.ep)out.push({f,t:tt,ep:!q&&tt===st.ep})}
+      if(!att&&on(r1,c)&&!b[r1*8+c]){out.push({f,t:r1*8+c});const home=side==="w"?6:1;if(r===home&&!b[(r+2*d)*8+c])out.push({f,t:(r+2*d)*8+c,dbl:1})}
+    }else if(t==="n")leap(KN);
+    else if(t==="b")slide(BI);
+    else if(t==="r")slide(RK);
+    else if(t==="q")slide(D8);
+    else if(t==="k"){leap(D8);
+      if(!att){const home=side==="w"?7:0,k=side==="w"?"wk":"bk",qs=side==="w"?"wq":"bq",o=side==="w"?"b":"w";
+        if(r===home&&c===4&&(st.cr[k]||st.cr[qs])&&!attacked(st,f,o)){
+          if(st.cr[k]&&!b[f+1]&&!b[f+2]&&b[f+3]&&b[f+3].t==="r"&&!attacked(st,f+1,o)&&!attacked(st,f+2,o))out.push({f,t:f+2,cs:1});
+          if(st.cr[qs]&&!b[f-1]&&!b[f-2]&&!b[f-3]&&b[f-4]&&b[f-4].t==="r"&&!attacked(st,f-1,o)&&!attacked(st,f-2,o))out.push({f,t:f-2,cs:-1});
+        }}}
+    else if(t==="A"){slide(D8);leap(KN)}
+    else if(t==="S")radius(3);
+    else if(t==="G")slideThru(D8);
+    else if(t==="O"){slideThru(D8);radius(2)}
+  }
+  return out;
+}
+function attacked(st,sq,by){for(const m of gen(st,by,true))if(m.t===sq)return true;return false}
+function kingSq(st,side){for(let i=0;i<64;i++){const p=st.b[i];if(p&&p.t==="k"&&p.s===side)return i}return -1}
+function inCheck(st,side){const k=kingSq(st,side);return k<0||attacked(st,k,side==="w"?"b":"w")}
+function make(st,m){
+  const b=st.b.slice(),P=b[m.f],cr={...st.cr};
+  b[m.t]=P;b[m.f]=null;
+  if(m.ep)b[(m.f&~7)+(m.t&7)]=null;
+  if(m.cs===1){b[m.f+1]=b[m.f+3];b[m.f+3]=null}
+  if(m.cs===-1){b[m.f-1]=b[m.f-4];b[m.f-4]=null}
+  if(P.t==="p"&&(m.t<8||m.t>=56))b[m.t]={t:"q",s:P.s};
+  if(P.t==="k"){if(P.s==="w"){cr.wk=cr.wq=0}else{cr.bk=cr.bq=0}}
+  for(const[sq,k]of[[63,"wk"],[56,"wq"],[7,"bk"],[0,"bq"]])if(m.f===sq||m.t===sq)cr[k]=0;
+  return {b,side:st.side==="w"?"b":"w",ep:m.dbl?(m.f+m.t)>>1:-1,cr};
+}
+function legal(st,side){side=side||st.side;return gen(st,side).filter(m=>!inCheck(make({...st,side},m),side))}
+function evalSide(st,side){let s=0;for(let i=0;i<64;i++){const p=st.b[i];if(!p)continue;let v=VAL[p.t];
+  if(p.t==="p")v+=(p.s==="w"?6-(i>>3):(i>>3)-1)*8;
+  if(p.t==="n"||p.t==="b"){const r=i>>3,c=i&7;v+=12-3*(Math.abs(3.5-r)+Math.abs(3.5-c))}
+  s+=p.s===side?v:-v}return s}
+let deadline=0,nodes=0;
+function order(st,ms){return ms.map(m=>{const q=st.b[m.t];return [m,q?VAL[q.t]*10-VAL[st.b[m.f].t]/10:0]}).sort((a,b)=>b[1]-a[1]).map(x=>x[0])}
+function qs(st,alpha,beta,d){
+  const side=st.side,stand=evalSide(st,side);
+  if(stand>=beta)return stand;if(stand>alpha)alpha=stand;if(d<=0)return alpha;
+  const caps=gen(st,side).filter(m=>st.b[m.t]);
+  for(const m of order(st,caps)){if(st.b[m.t].t==="k")return 50000;
+    const v=-qs(make(st,m),-beta,-alpha,d-1);if(v>=beta)return v;if(v>alpha)alpha=v}
+  return alpha;
+}
+function search(st,depth,alpha,beta){
+  if(++nodes%512===0&&performance.now()>deadline)throw 0;
+  if(depth===0)return qs(st,alpha,beta,2);
+  const ms=gen(st,st.side);let best=-1e9;
+  for(const m of order(st,ms)){
+    const q=st.b[m.t];if(q&&q.t==="k")return 50000+depth;
+    const v=-search(make(st,m),depth-1,-beta,-alpha);
+    if(v>best)best=v;if(v>alpha)alpha=v;if(alpha>=beta)break;
+  }
+  return best;
+}
+function think(st,ms=700){
+  const root=order(st,legal(st));if(!root.length)return null;
+  deadline=performance.now()+ms;let best=root[0];
+  for(let d=1;d<=4;d++){
+    try{let a=-1e9,bm=null;for(const m of root){const v=-search(make(st,m),d-1,-1e9,-a)+Math.random()*4;if(v>a||!bm){a=v;bm=m}}best=bm;root.splice(root.indexOf(bm),1);root.unshift(bm)}
+    catch(e){break}
+  }
+  return best;
+}
+return {start,legal,make,inCheck,think,gen,CUSTOM,VAL,kingSq};
+})();
+</script>
+<script>
+{
+const LABS=[
+ {n:"OpenAI",bg:"#101010",fg:"#fff"},
+ {n:"Anthropic",bg:"#d97757",fg:"#141413"},
+ {n:"Google DeepMind",bg:"#4285f4",fg:"#fff"},
+ {n:"Meta AI",bg:"#0866ff",fg:"#fff"},
+ {n:"Mistral AI",bg:"#fff6ee",fg:"#000"},
+ {n:"xAI",bg:"#f2f2f2",fg:"#000"},
+ {n:"DeepSeek",bg:"#4d6bfe",fg:"#fff"},
+ {n:"Cohere",bg:"#39594d",fg:"#ff7759"},
+ {n:"Alibaba Qwen",bg:"#615ced",fg:"#fff"},
+ {n:"Moonshot AI",bg:"#16191e",fg:"#fff"},
+ {n:"Zhipu AI",bg:"#2b5bd7",fg:"#fff"},
+ {n:"Microsoft AI",bg:"#fff",fg:"#000"},
+ {n:"Amazon AGI",bg:"#232f3e",fg:"#ff9900"},
+ {n:"Perplexity",bg:"#20808d",fg:"#fff"},
+ {n:"AI21 Labs",bg:"#ff6f61",fg:"#1a1a1a"},
+ {n:"Stability AI",bg:"#7c3aed",fg:"#fff"},
+ {n:"Reka",bg:"#ffd400",fg:"#111"}
+];
+const LOGOS={"OpenAI": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M9.205 8.658v-2.26c0-.19.072-.333.238-.428l4.543-2.616c.619-.357 1.356-.523 2.117-.523 2.854 0 4.662 2.212 4.662 4.566 0 .167 0 .357-.024.547l-4.71-2.759a.797.797 0 00-.856 0l-5.97 3.473zm10.609 8.8V12.06c0-.333-.143-.57-.429-.737l-5.97-3.473 1.95-1.118a.433.433 0 01.476 0l4.543 2.617c1.309.76 2.189 2.378 2.189 3.948 0 1.808-1.07 3.473-2.76 4.163zM7.802 12.703l-1.95-1.142c-.167-.095-.239-.238-.239-.428V5.899c0-2.545 1.95-4.472 4.591-4.472 1 0 1.927.333 2.712.928L8.23 5.067c-.285.166-.428.404-.428.737v6.898zM12 15.128l-2.795-1.57v-3.33L12 8.658l2.795 1.57v3.33L12 15.128zm1.796 7.23c-1 0-1.927-.332-2.712-.927l4.686-2.712c.285-.166.428-.404.428-.737v-6.898l1.974 1.142c.167.095.238.238.238.428v5.233c0 2.545-1.974 4.472-4.614 4.472zm-5.637-5.303l-4.544-2.617c-1.308-.761-2.188-2.378-2.188-3.948A4.482 4.482 0 014.21 6.327v5.423c0 .333.143.571.428.738l5.947 3.449-1.95 1.118a.432.432 0 01-.476 0zm-.262 3.9c-2.688 0-4.662-2.021-4.662-4.519 0-.19.024-.38.047-.57l4.686 2.71c.286.167.571.167.856 0l5.97-3.448v2.26c0 .19-.07.333-.237.428l-4.543 2.616c-.619.357-1.356.523-2.117.523zm5.899 2.83a5.947 5.947 0 005.827-4.756C22.287 18.339 24 15.84 24 13.296c0-1.665-.713-3.282-1.998-4.448.119-.5.19-.999.19-1.498 0-3.401-2.759-5.947-5.946-5.947-.642 0-1.26.095-1.88.31A5.962 5.962 0 0010.205 0a5.947 5.947 0 00-5.827 4.757C1.713 5.447 0 7.945 0 10.49c0 1.666.713 3.283 1.998 4.448-.119.5-.19 1-.19 1.499 0 3.401 2.759 5.946 5.946 5.946.642 0 1.26-.095 1.88-.309a5.96 5.96 0 004.162 1.713z\"></path></svg>", "Anthropic": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M13.827 3.52h3.603L24 20h-3.603l-6.57-16.48zm-7.258 0h3.767L16.906 20h-3.674l-1.343-3.461H5.017l-1.344 3.46H0L6.57 3.522zm4.132 9.959L8.453 7.687 6.205 13.48H10.7z\"></path></svg>", "Google DeepMind": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M5.988 1.622A8.539 8.539 0 003.45 8.446c.349 4.408 4.506 7.995 8.276 7.995 3.507 0 4.88-3.061 4.541-5.14a4.318 4.318 0 00-.95-2.073c.632.34 1.244.776 1.809 1.3 1.52 1.415 2.44 3.229 2.587 5.1C20.04 19.763 16.98 24 11.863 24c-1.695 0-3.48-.432-4.98-1.143C2.816 20.937 0 16.797 0 12.002 0 7.571 2.405 3.7 5.988 1.622zM12.136 0c1.696 0 3.481.432 4.98 1.143C21.186 3.063 24 7.203 24 11.998c0 4.431-2.405 8.303-5.988 10.38a8.539 8.539 0 002.538-6.824c-.349-4.408-4.506-7.995-8.276-7.995-3.507 0-4.88 3.061-4.541 5.14a4.3 4.3 0 00.953 2.073 8.723 8.723 0 01-1.81-1.3c-1.52-1.415-2.44-3.227-2.589-5.1C3.96 4.237 7.02 0 12.137 0z\"></path></svg>", "Meta AI": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M10.547.232c.776-.086 1.543.244 2.152.712.784.598 1.375 1.434 1.757 2.347.19.444.3.92.345 1.402.01.384.024.781-.108 1.148-.126.406-.362.795-.728 1.017-.352.236-.786.3-1.199.288-.84-.073-1.613-.52-2.212-1.106-.15-.1-.236-.263-.368-.38-.801-.97-1.394-2.203-1.324-3.496.048-.698.38-1.44 1.03-1.75.206-.1.428-.164.655-.182zM18.595 3.077c.52-.045 1.032.186 1.4.551.402.434.625 1.006.736 1.584.096.605.09 1.233-.048 1.83a5.97 5.97 0 01-.907 2.19c-.198.25-.382.519-.633.719-.493.45-1.181.725-1.848.598-.42-.08-.819-.306-1.085-.646-.514-.591-.687-1.403-.714-2.17a6.11 6.11 0 011.03-3.285c.237-.314.49-.62.797-.867.375-.27.805-.486 1.272-.504zM5.038 4.172c.618-.045 1.238.067 1.832.235.871.28 1.741.78 2.182 1.624.177.383.256.826.152 1.242-.097.442-.375.816-.71 1.105-.724.59-1.664.84-2.577.887a5.356 5.356 0 01-2.881-.675c-.39-.248-.765-.539-1.025-.93a1.9 1.9 0 01-.327-1.283c.067-.507.357-.968.741-1.289.723-.62 1.684-.873 2.613-.916zM4.87 10.369c.69-.06 1.465.223 1.811.866.213.349.278.763.29 1.166.006.528-.136 1.046-.34 1.529-.34.793-.893 1.478-1.538 2.036-.64.538-1.42.951-2.26 1.015a2.031 2.031 0 01-1.467-.398c-.353-.281-.578-.707-.662-1.15-.156-.8.077-1.62.445-2.327.196-.377.444-.724.72-1.044.767-.886 1.814-1.608 3.001-1.693zM20.391 11.05c.881-.087 1.872.116 2.477.822.473.58.534 1.425.239 2.102-.118.317-.32.59-.527.852-.877.962-2.11 1.553-3.379 1.744-.818.123-1.723.036-2.406-.477-.2-.161-.386-.346-.514-.573-.277-.436-.321-.994-.216-1.492.224-.904.92-1.594 1.676-2.073a5.874 5.874 0 012.65-.905zM7.553 15.523c.381-.052.775.004 1.118.184.344.154.613.427.866.702.866 1.097 1.267 2.549 1.146 3.944a4.476 4.476 0 01-.497 1.61c-.273.469-.663.91-1.187 1.08-.35.103-.731.118-1.077-.005a2.53 2.53 0 01-.959-.612c-.798-.859-1.236-2.02-1.343-3.185-.055-.646-.006-1.31.21-1.923.146-.471.384-.92.738-1.265.261-.277.62-.452.985-.53zM13.637 16.5a4.237 4.237 0 011.82.219c.795.286 1.542.724 2.148 1.323.535.504.963 1.162 1.099 1.899.055.379.038.785-.122 1.138-.19.465-.599.807-1.051.996-.883.364-1.887.253-2.76-.082a5.568 5.568 0 01-2.343-1.685c-.347-.445-.616-.968-.697-1.534-.042-.382-.036-.788.13-1.142.194-.418.55-.76.978-.925.25-.119.525-.174.798-.207z\"></path></svg>", "Mistral AI": "<svg viewBox=\"0 0 24 24\"><path d=\"M3.428 3.4h3.429v3.428H3.428V3.4zm13.714 0h3.43v3.428h-3.43V3.4z\" fill=\"gold\"></path><path d=\"M3.428 6.828h6.857v3.429H3.429V6.828zm10.286 0h6.857v3.429h-6.857V6.828z\" fill=\"#FFAF00\"></path><path d=\"M3.428 10.258h17.144v3.428H3.428v-3.428z\" fill=\"#FF8205\"></path><path d=\"M3.428 13.686h3.429v3.428H3.428v-3.428zm6.858 0h3.429v3.428h-3.429v-3.428zm6.856 0h3.43v3.428h-3.43v-3.428z\" fill=\"#FA500F\"></path><path d=\"M0 17.114h10.286v3.429H0v-3.429zm13.714 0H24v3.429H13.714v-3.429z\" fill=\"#E10500\"></path></svg>", "xAI": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M6.469 8.776L16.512 23h-4.464L2.005 8.776H6.47zm-.004 7.9l2.233 3.164L6.467 23H2l4.465-6.324zM22 2.582V23h-3.659V7.764L22 2.582zM22 1l-9.952 14.095-2.233-3.163L17.533 1H22z\"></path></svg>", "DeepSeek": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M23.748 4.482c-.254-.124-.364.113-.512.234-.051.039-.094.09-.137.136-.372.397-.806.657-1.373.626-.829-.046-1.537.214-2.163.848-.133-.782-.575-1.248-1.247-1.548-.352-.156-.708-.311-.955-.65-.172-.241-.219-.51-.305-.774-.055-.16-.11-.323-.293-.35-.2-.031-.278.136-.356.276-.313.572-.434 1.202-.422 1.84.027 1.436.633 2.58 1.838 3.393.137.093.172.187.129.323-.082.28-.18.552-.266.833-.055.179-.137.217-.329.14a5.526 5.526 0 01-1.736-1.18c-.857-.828-1.631-1.742-2.597-2.458a11.365 11.365 0 00-.689-.471c-.985-.957.13-1.743.388-1.836.27-.098.093-.432-.779-.428-.872.004-1.67.295-2.687.684a3.055 3.055 0 01-.465.137 9.597 9.597 0 00-2.883-.102c-1.885.21-3.39 1.102-4.497 2.623C.082 8.606-.231 10.684.152 12.85c.403 2.284 1.569 4.175 3.36 5.653 1.858 1.533 3.997 2.284 6.438 2.14 1.482-.085 3.133-.284 4.994-1.86.47.234.962.327 1.78.397.63.059 1.236-.03 1.705-.128.735-.156.684-.837.419-.961-2.155-1.004-1.682-.595-2.113-.926 1.096-1.296 2.746-2.642 3.392-7.003.05-.347.007-.565 0-.845-.004-.17.035-.237.23-.256a4.173 4.173 0 001.545-.475c1.396-.763 1.96-2.015 2.093-3.517.02-.23-.004-.467-.247-.588zM11.581 18c-2.089-1.642-3.102-2.183-3.52-2.16-.392.024-.321.471-.235.763.09.288.207.486.371.739.114.167.192.416-.113.603-.673.416-1.842-.14-1.897-.167-1.361-.802-2.5-1.86-3.301-3.307-.774-1.393-1.224-2.887-1.298-4.482-.02-.386.093-.522.477-.592a4.696 4.696 0 011.529-.039c2.132.312 3.946 1.265 5.468 2.774.868.86 1.525 1.887 2.202 2.891.72 1.066 1.494 2.082 2.48 2.914.348.292.625.514.891.677-.802.09-2.14.11-3.054-.614zm1-6.44a.306.306 0 01.415-.287.302.302 0 01.2.288.306.306 0 01-.31.307.303.303 0 01-.304-.308zm3.11 1.596c-.2.081-.399.151-.59.16a1.245 1.245 0 01-.798-.254c-.274-.23-.47-.358-.552-.758a1.73 1.73 0 01.016-.588c.07-.327-.008-.537-.239-.727-.187-.156-.426-.199-.688-.199a.559.559 0 01-.254-.078c-.11-.054-.2-.19-.114-.358.028-.054.16-.186.192-.21.356-.202.767-.136 1.146.016.352.144.618.408 1.001.782.391.451.462.576.685.914.176.265.336.537.445.848.067.195-.019.354-.25.452z\"></path></svg>", "Cohere": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path clip-rule=\"evenodd\" d=\"M8.128 14.099c.592 0 1.77-.033 3.398-.703 1.897-.781 5.672-2.2 8.395-3.656 1.905-1.018 2.74-2.366 2.74-4.18A4.56 4.56 0 0018.1 1H7.549A6.55 6.55 0 001 7.55c0 3.617 2.745 6.549 7.128 6.549z\"></path><path clip-rule=\"evenodd\" d=\"M9.912 18.61a4.387 4.387 0 012.705-4.052l3.323-1.38c3.361-1.394 7.06 1.076 7.06 4.715a5.104 5.104 0 01-5.105 5.104l-3.597-.001a4.386 4.386 0 01-4.386-4.387z\"></path><path d=\"M4.776 14.962A3.775 3.775 0 001 18.738v.489a3.776 3.776 0 007.551 0v-.49a3.775 3.775 0 00-3.775-3.775z\"></path></svg>", "Alibaba Qwen": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M19.713 2.825h-5.907c0-.251-.066-.503-.196-.728L12.819.728A1.46 1.46 0 0 0 11.559 0h-1.58c-.52 0-1 .275-1.26.728l-2.42 4.19a1.45 1.45 0 0 0 0 1.453l.791 1.37c.26.448.74.727 1.26.727h11.36c.52 0 1-.275 1.26-.728l.79-1.37a1.45 1.45 0 0 0 0-1.451l-.79-1.37a1.46 1.46 0 0 0-1.26-.728zM.195 9.905l2.951 5.115a1.46 1.46 0 0 0-.531.531l-.791 1.37a1.45 1.45 0 0 0 0 1.452l.79 1.37c.26.448.74.727 1.26.727h4.84c.52 0 1-.275 1.26-.728l.79-1.37a1.45 1.45 0 0 0 0-1.451L5.086 7.083a1.46 1.46 0 0 0-1.26-.728h-1.58c-.52 0-1 .276-1.26.728l-.79 1.37a1.45 1.45 0 0 0 0 1.452m15.888 13.367 2.951-5.115c.217.125.469.196.728.196h1.582c.52 0 1-.275 1.26-.728l.79-1.37a1.45 1.45 0 0 0 0-1.451l-2.42-4.191a1.46 1.46 0 0 0-1.259-.728h-1.582c-.52 0-1 .276-1.259.728l-5.678 9.838a1.45 1.45 0 0 0 0 1.452l.79 1.37c.26.448.74.727 1.26.727h1.582c.52 0 1-.275 1.26-.728z\"></path></svg>", "Moonshot AI": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M1.052 16.916l9.539 2.552a21.007 21.007 0 00.06 2.033l5.956 1.593a11.997 11.997 0 01-5.586.865l-.18-.016-.044-.004-.084-.009-.094-.01a11.605 11.605 0 01-.157-.02l-.107-.014-.11-.016a11.962 11.962 0 01-.32-.051l-.042-.008-.075-.013-.107-.02-.07-.015-.093-.019-.075-.016-.095-.02-.097-.023-.094-.022-.068-.017-.088-.022-.09-.024-.095-.025-.082-.023-.109-.03-.062-.02-.084-.025-.093-.028-.105-.034-.058-.019-.08-.026-.09-.031-.066-.024a6.293 6.293 0 01-.044-.015l-.068-.025-.101-.037-.057-.022-.08-.03-.087-.035-.088-.035-.079-.032-.095-.04-.063-.028-.063-.027a5.655 5.655 0 01-.041-.018l-.066-.03-.103-.047-.052-.024-.096-.046-.062-.03-.084-.04-.086-.044-.093-.047-.052-.027-.103-.055-.057-.03-.058-.032a6.49 6.49 0 01-.046-.026l-.094-.053-.06-.034-.051-.03-.072-.041-.082-.05-.093-.056-.052-.032-.084-.053-.061-.039-.079-.05-.07-.047-.053-.035a7.785 7.785 0 01-.054-.036l-.044-.03-.044-.03a6.066 6.066 0 01-.04-.028l-.057-.04-.076-.054-.069-.05-.074-.054-.056-.042-.076-.057-.076-.059-.086-.067-.045-.035-.064-.052-.074-.06-.089-.073-.046-.039-.046-.039a7.516 7.516 0 01-.043-.037l-.045-.04-.061-.053-.07-.062-.068-.06-.062-.058-.067-.062-.053-.05-.088-.084a13.28 13.28 0 01-.099-.097l-.029-.028-.041-.042-.069-.07-.05-.051-.05-.053a6.457 6.457 0 01-.168-.179l-.08-.088-.062-.07-.071-.08-.042-.049-.053-.062-.058-.068-.046-.056a7.175 7.175 0 01-.027-.033l-.045-.055-.066-.082-.041-.052-.05-.064-.02-.025a11.99 11.99 0 01-1.44-2.402zm-1.02-5.794l11.353 3.037a20.468 20.468 0 00-.469 2.011l10.817 2.894a12.076 12.076 0 01-1.845 2.005L.657 15.923l-.016-.046-.035-.104a11.965 11.965 0 01-.05-.153l-.007-.023a11.896 11.896 0 01-.207-.741l-.03-.126-.018-.08-.021-.097-.018-.081-.018-.09-.017-.084-.018-.094c-.026-.141-.05-.283-.071-.426l-.017-.118-.011-.083-.013-.102a12.01 12.01 0 01-.019-.161l-.005-.047a12.12 12.12 0 01-.034-2.145zm1.593-5.15l11.948 3.196c-.368.605-.705 1.231-1.01 1.875l11.295 3.022c-.142.82-.368 1.612-.668 2.365l-11.55-3.09L.124 10.26l.015-.1.008-.049.01-.067.015-.087.018-.098c.026-.148.056-.295.088-.442l.028-.124.02-.085.024-.097c.022-.09.045-.18.07-.268l.028-.102.023-.083.03-.1.025-.082.03-.096.026-.082.031-.095a11.896 11.896 0 011.01-2.232zm4.442-4.4L17.352 4.59a20.77 20.77 0 00-1.688 1.721l7.823 2.093c.267.852.442 1.744.513 2.665L2.106 5.213l.045-.065.027-.04.04-.055.046-.065.055-.076.054-.072.064-.086.05-.065.057-.073.055-.07.06-.074.055-.069.065-.077.054-.066.066-.077.053-.06.072-.082.053-.06.067-.074.054-.058.073-.078.058-.06.063-.067.168-.17.1-.098.059-.056.076-.071a12.084 12.084 0 012.272-1.677zM12.017 0h.097l.082.001.069.001.054.002.068.002.046.001.076.003.047.002.06.003.054.002.087.005.105.007.144.011.088.007.044.004.077.008.082.008.047.005.102.012.05.006.108.014.081.01.042.006.065.01.207.032.07.012.065.011.14.026.092.018.11.022.046.01.075.016.041.01L14.7.3l.042.01.065.015.049.012.071.017.096.024.112.03.113.03.113.032.05.015.07.02.078.024.073.023.05.016.05.016.076.025.099.033.102.036.048.017.064.023.093.034.11.041.116.045.1.04.047.02.06.024.041.018.063.026.04.018.057.025.11.048.1.046.074.035.075.036.06.028.092.046.091.045.102.052.053.028.049.026.046.024.06.033.041.022.052.029.088.05.106.06.087.051.057.034.053.032.096.059.088.055.098.062.036.024.064.041.084.056.04.027.062.042.062.043.023.017c.054.037.108.075.161.114l.083.06.065.048.056.043.086.065.082.064.04.03.05.041.086.069.079.065.085.071c.712.6 1.353 1.283 1.909 2.031L7.222.994l.062-.027.065-.028.081-.034.086-.035c.113-.045.227-.09.341-.131l.096-.035.093-.033.084-.03.096-.031c.087-.03.176-.058.264-.085l.091-.027.086-.025.102-.03.085-.023.1-.026L9.04.37l.09-.023.091-.022.095-.022.09-.02.098-.021.091-.02.095-.018.092-.018.1-.018.091-.016.098-.017.092-.014.097-.015.092-.013.102-.013.091-.012.105-.012.09-.01.105-.01c.093-.01.186-.018.28-.024l.106-.008.09-.005.11-.006.093-.004.1-.004.097-.002.099-.002.197-.002z\"></path></svg>", "Zhipu AI": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M11.991 23.503a.24.24 0 00-.244.248.24.24 0 00.244.249.24.24 0 00.245-.249.24.24 0 00-.22-.247l-.025-.001zM9.671 5.365a1.697 1.697 0 011.099 2.132l-.071.172-.016.04-.018.054c-.07.16-.104.32-.104.498-.035.71.47 1.279 1.186 1.314h.366c1.309.053 2.338 1.173 2.286 2.523-.052 1.332-1.152 2.38-2.478 2.327h-.174c-.715.018-1.274.64-1.239 1.368 0 .124.018.23.053.337.209.373.54.658.96.8.75.23 1.517-.125 1.9-.782l.018-.035c.402-.64 1.17-.96 1.92-.711.854.284 1.378 1.226 1.099 2.167a1.661 1.661 0 01-2.077 1.102 1.711 1.711 0 01-.907-.711l-.017-.035c-.2-.323-.463-.58-.851-.711l-.056-.018a1.646 1.646 0 00-1.954.746 1.66 1.66 0 01-1.065.764 1.677 1.677 0 01-1.989-1.279c-.209-.906.332-1.83 1.257-2.043a1.51 1.51 0 01.296-.035h.018c.68-.071 1.151-.622 1.116-1.333a1.307 1.307 0 00-.227-.693 2.515 2.515 0 01-.366-1.403 2.39 2.39 0 01.366-1.208c.14-.195.21-.444.227-.693.018-.71-.506-1.261-1.186-1.332l-.07-.018a1.43 1.43 0 01-.299-.07l-.05-.019a1.7 1.7 0 01-1.047-2.114 1.68 1.68 0 012.094-1.101zm-5.575 10.11c.26-.264.639-.367.994-.27.355.096.633.379.728.74.095.362-.007.748-.267 1.013-.402.41-1.053.41-1.455 0a1.062 1.062 0 010-1.482zm14.845-.294c.359-.09.738.024.992.297.254.274.344.665.237 1.025-.107.36-.396.634-.756.718-.551.128-1.1-.22-1.23-.781a1.05 1.05 0 01.757-1.26zm-.064-4.39c.314.32.49.753.49 1.206 0 .452-.176.886-.49 1.206-.315.32-.74.5-1.185.5-.444 0-.87-.18-1.184-.5a1.727 1.727 0 010-2.412 1.654 1.654 0 012.369 0zm-11.243.163c.364.484.447 1.128.218 1.691a1.665 1.665 0 01-2.188.923c-.855-.36-1.26-1.358-.907-2.228a1.68 1.68 0 011.33-1.038c.593-.08 1.183.169 1.547.652zm11.545-4.221c.368 0 .708.2.892.524.184.324.184.724 0 1.048a1.026 1.026 0 01-.892.524c-.568 0-1.03-.47-1.03-1.048 0-.579.462-1.048 1.03-1.048zm-14.358 0c.368 0 .707.2.891.524.184.324.184.724 0 1.048a1.026 1.026 0 01-.891.524c-.569 0-1.03-.47-1.03-1.048 0-.579.461-1.048 1.03-1.048zm10.031-1.475c.925 0 1.675.764 1.675 1.706s-.75 1.705-1.675 1.705-1.674-.763-1.674-1.705c0-.942.75-1.706 1.674-1.706zm-2.626-.684c.362-.082.653-.356.761-.718a1.062 1.062 0 00-.238-1.028 1.017 1.017 0 00-.996-.294c-.547.14-.881.7-.752 1.257.13.558.675.907 1.225.783zm0 16.876c.359-.087.644-.36.75-.72a1.062 1.062 0 00-.237-1.019 1.018 1.018 0 00-.985-.301 1.037 1.037 0 00-.762.717c-.108.361-.017.754.239 1.028.245.263.606.377.953.305l.043-.01zM17.19 3.5a.631.631 0 00.628-.64c0-.355-.279-.64-.628-.64a.631.631 0 00-.628.64c0 .355.28.64.628.64zm-10.38 0a.631.631 0 00.628-.64c0-.355-.28-.64-.628-.64a.631.631 0 00-.628.64c0 .355.279.64.628.64zm-5.182 7.852a.631.631 0 00-.628.64c0 .354.28.639.628.639a.63.63 0 00.627-.606l.001-.034a.62.62 0 00-.628-.64zm5.182 9.13a.631.631 0 00-.628.64c0 .355.279.64.628.64a.631.631 0 00.628-.64c0-.355-.28-.64-.628-.64zm10.38.018a.631.631 0 00-.628.64c0 .355.28.64.628.64a.631.631 0 00.628-.64c0-.355-.279-.64-.628-.64zm5.182-9.148a.631.631 0 00-.628.64c0 .354.279.639.628.639a.631.631 0 00.628-.64c0-.355-.28-.64-.628-.64zm-.384-4.992a.24.24 0 00.244-.249.24.24 0 00-.244-.249.24.24 0 00-.244.249c0 .142.122.249.244.249zM11.991.497a.24.24 0 00.245-.248A.24.24 0 0011.99 0a.24.24 0 00-.244.249c0 .133.108.236.223.247l.021.001zM2.011 6.36a.24.24 0 00.245-.249.24.24 0 00-.244-.249.24.24 0 00-.244.249.24.24 0 00.244.249zm0 11.263a.24.24 0 00-.243.248.24.24 0 00.244.249.24.24 0 00.244-.249.252.252 0 00-.244-.248zm19.995-.018a.24.24 0 00-.245.248.24.24 0 00.245.25.24.24 0 00.244-.25.252.252 0 00-.244-.248z\"></path></svg>", "Microsoft AI": "<svg viewBox=\"0 0 24 24\"><path d=\"M11.49 2H2v9.492h9.492V2h-.002z\" fill=\"#F25022\"></path><path d=\"M22 2h-9.492v9.492H22V2z\" fill=\"#7FBA00\"></path><path d=\"M11.49 12.508H2V22h9.492v-9.492h-.002z\" fill=\"#00A4EF\"></path><path d=\"M22 12.508h-9.492V22H22v-9.492z\" fill=\"#FFB900\"></path></svg>", "Amazon AGI": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M6.763 11.212c0 .296.032.535.088.71.064.176.144.368.256.576.04.063.056.127.056.183 0 .08-.048.16-.152.24l-.503.335a.383.383 0 01-.208.072c-.08 0-.16-.04-.239-.112a2.47 2.47 0 01-.287-.375 6.18 6.18 0 01-.248-.471c-.622.734-1.405 1.101-2.347 1.101-.67 0-1.205-.191-1.596-.574-.39-.384-.59-.894-.59-1.533 0-.678.24-1.23.726-1.644.487-.415 1.133-.623 1.955-.623.272 0 .551.024.846.064.296.04.6.104.918.176v-.583c0-.607-.127-1.03-.375-1.277-.255-.248-.686-.367-1.3-.367-.28 0-.568.031-.863.103-.295.072-.583.16-.862.272-.09.04-.184.075-.28.104a.488.488 0 01-.127.023c-.112 0-.168-.08-.168-.247v-.391c0-.128.016-.224.056-.28a.597.597 0 01.224-.167 4.577 4.577 0 011.005-.36 4.84 4.84 0 011.246-.151c.95 0 1.644.216 2.091.647.44.43.662 1.085.662 1.963v2.586h.016zm-3.24 1.214c.263 0 .534-.048.822-.144a1.78 1.78 0 00.758-.51 1.27 1.27 0 00.272-.512c.047-.191.08-.423.08-.694v-.335a6.66 6.66 0 00-.735-.136 6.02 6.02 0 00-.75-.048c-.535 0-.926.104-1.19.32-.263.215-.39.518-.39.917 0 .375.095.655.295.846.191.2.47.296.838.296zm6.41.862c-.144 0-.24-.024-.304-.08-.064-.048-.12-.16-.168-.311L7.586 6.726a1.398 1.398 0 01-.072-.32c0-.128.064-.2.191-.2h.783c.151 0 .255.025.31.08.065.048.113.16.16.312l1.342 5.284 1.245-5.284c.04-.16.088-.264.151-.312a.549.549 0 01.32-.08h.638c.152 0 .256.025.32.08.063.048.12.16.151.312l1.261 5.348 1.381-5.348c.048-.16.104-.264.16-.312a.52.52 0 01.311-.08h.743c.127 0 .2.065.2.2 0 .04-.009.08-.017.128a1.137 1.137 0 01-.056.2l-1.923 6.17c-.048.16-.104.263-.168.311a.51.51 0 01-.303.08h-.687c-.15 0-.255-.024-.32-.08-.063-.056-.119-.16-.15-.32L12.32 7.747l-1.23 5.14c-.04.16-.087.264-.15.32-.065.056-.177.08-.32.08l-.686.001zm10.256.215c-.415 0-.83-.048-1.229-.143-.399-.096-.71-.2-.918-.32-.128-.071-.215-.151-.247-.223a.563.563 0 01-.048-.224v-.407c0-.167.064-.247.183-.247.048 0 .096.008.144.024.048.016.12.048.2.08.271.12.566.215.878.279.32.064.63.096.95.096.502 0 .894-.088 1.165-.264a.86.86 0 00.415-.758.777.777 0 00-.215-.559c-.144-.151-.416-.287-.807-.415l-1.157-.36c-.583-.183-1.014-.454-1.277-.813a1.902 1.902 0 01-.4-1.158c0-.335.073-.63.216-.886.144-.255.335-.479.575-.654.24-.184.51-.32.83-.415.32-.096.655-.136 1.006-.136.175 0 .36.008.535.032.183.024.35.056.518.088.16.04.312.08.455.127.144.048.256.096.336.144a.69.69 0 01.24.2.43.43 0 01.071.263v.375c0 .168-.064.256-.184.256a.83.83 0 01-.303-.096 3.652 3.652 0 00-1.532-.311c-.455 0-.815.071-1.062.223-.248.152-.375.383-.375.71 0 .224.08.416.24.567.16.152.454.304.877.44l1.134.358c.574.184.99.44 1.237.767.247.327.367.702.367 1.117 0 .343-.072.655-.207.926a2.157 2.157 0 01-.583.703c-.248.2-.543.343-.886.447-.36.111-.734.167-1.142.167z\"></path><path d=\"M.378 15.475c3.384 1.963 7.56 3.153 11.877 3.153 2.914 0 6.114-.607 9.06-1.852.44-.2.814.287.383.607-2.626 1.94-6.442 2.969-9.722 2.969-4.598 0-8.74-1.7-11.87-4.526-.247-.223-.024-.527.272-.351zm23.531-.2c.287.36-.08 2.826-1.485 4.007-.215.184-.423.088-.327-.151l.175-.439c.343-.88.802-2.198.52-2.555-.336-.43-2.22-.207-3.074-.103-.255.032-.295-.192-.063-.36 1.5-1.053 3.967-.75 4.254-.399z\"></path></svg>", "Perplexity": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M19.785 0v7.272H22.5V17.62h-2.935V24l-7.037-6.194v6.145h-1.091v-6.152L4.392 24v-6.465H1.5V7.188h2.884V0l7.053 6.494V.19h1.09v6.49L19.786 0zm-7.257 9.044v7.319l5.946 5.234V14.44l-5.946-5.397zm-1.099-.08l-5.946 5.398v7.235l5.946-5.234V8.965zm8.136 7.58h1.844V8.349H13.46l6.105 5.54v2.655zm-8.982-8.28H2.59v8.195h1.8v-2.576l6.192-5.62zM5.475 2.476v4.71h5.115l-5.115-4.71zm13.219 0l-5.115 4.71h5.115v-4.71z\"></path></svg>", "AI21 Labs": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M6.47 17l-.367-1.189H2.718L2.35 17H0l3.398-9.789h2.026L8.864 17H6.47zm-2.052-6.993l-1.17 4.028H5.56l-1.142-4.028zm4.707-2.796h2.23V17h-2.23V7.211zM11.955 15c.1-.483.277-.946.524-1.37.214-.359.482-.68.795-.951.32-.273.658-.52 1.013-.741.28-.168.54-.33.781-.483.222-.14.433-.296.632-.468.172-.148.317-.325.428-.525.107-.199.16-.423.157-.65 0-.392-.104-.674-.313-.846a1.176 1.176 0 00-.775-.259 1.207 1.207 0 00-.863.329c-.231.219-.347.585-.347 1.098H11.8a3.387 3.387 0 01.224-1.245c.146-.377.371-.716.66-.993.306-.29.667-.514 1.06-.657A4.04 4.04 0 0115.183 7c.42-.002.84.057 1.244.175.376.107.73.287 1.04.531.305.246.55.562.714.923.185.419.275.875.265 1.335.005.39-.084.774-.259 1.12-.167.328-.38.63-.632.894-.246.259-.517.49-.808.693-.29.2-.554.37-.789.51-.326.224-.596.417-.809.58a3.872 3.872 0 00-.51.455 1.229 1.229 0 00-.265.434 1.633 1.633 0 00-.074.517h4.078V17h-6.606a9.24 9.24 0 01.183-2zM18.8 8.93a5.05 5.05 0 001.135-.105c.25-.049.484-.156.686-.314.163-.139.28-.324.34-.532.068-.25.1-.51.095-.77H23V17h-2.243v-6.475H18.8V8.93z\"></path></svg>", "Stability AI": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M7.223 21c4.252 0 7.018-2.22 7.018-5.56 0-2.59-1.682-4.236-4.69-4.918l-1.93-.571c-1.694-.375-2.683-.825-2.45-1.975.194-.957.773-1.497 2.122-1.497 4.285 0 5.873 1.497 5.873 1.497v-3.6S11.62 3 7.293 3C3.213 3 1 5.07 1 8.273c0 2.59 1.534 4.097 4.645 4.812l.334.083c.473.144 1.112.335 1.916.572 1.59.375 1.999.773 1.999 1.966 0 1.09-1.15 1.71-2.67 1.71C2.841 17.416 1 15.231 1 15.231v3.989S2.152 21 7.223 21z\"></path><path d=\"M20.374 20.73c1.505 0 2.626-1.073 2.626-2.526 0-1.484-1.089-2.526-2.626-2.526-1.505 0-2.594 1.042-2.594 2.526 0 1.484 1.089 2.526 2.594 2.526z\"></path></svg>", "Reka": "<svg viewBox=\"0 0 24 24\" fill=\"currentColor\" fill-rule=\"evenodd\"><path d=\"M3.662.014C4.347.004 5.052.012 5.74.012h3.9q1.01.006 2.02-.006c-.005.87-.01 1.779 0 2.647-.16-.027-.593-.018-.774-.018H4.943l-1.408.001c-.263.001-.595.01-.852-.004.014 1.216.002 2.455.002 3.673v4.681c0 .185-.008.48.016.656-.834-.039-1.849-.005-2.7-.01.032-.717.008-1.576.008-2.307V3.69c-.001-.44-.023-.812.065-1.246.11-.557.377-1.07.77-1.481A3 3 0 0 1 2.756.03c.245-.022.644-.01.905-.017M23.74 11.641c-.688-.03-1.54-.007-2.237-.007H15.92c-.853.001-1.373.024-2.139-.422a3.02 3.02 0 0 1-1.4-1.842c-.146-.553-.1-1.285-.1-1.863V5.299l-.002-1.535c0-.37-.011-.794.035-1.156.053-.388.183-.763.382-1.1A3.01 3.01 0 0 1 15.102.013c.387-.022.869-.01 1.261-.01l2.224.001h1.607c.88-.001 1.449-.037 2.237.426a3.02 3.02 0 0 1 1.293 1.544c.08.217.12.395.177.615v1.027c-.072.167-.123.472-.227.719a3.04 3.04 0 0 1-1.176 1.375c-.318.204-.74.34-1.098.467l-.951.34-3.181 1.132c-.552.196-1.205.41-1.74.626-.03-.646.008-1.316-.007-1.965-.005-.2-.006-.432.01-.632.463-.189.96-.368 1.43-.547l2.719-1.038c.357-.137.717-.268 1.074-.405.174-.067.352-.135.433-.315.186-.414-.112-.74-.538-.739q-.555 0-1.106.003l-2.161-.002H16.12c-.248 0-.506-.008-.752.018-.124.008-.327.157-.362.28-.07.246-.052.597-.052.852l.003 1.055V7.5c0 .497.01 1.024-.004 1.519.334-.026.816-.01 1.164-.01H18.2c1.825 0 3.726-.027 5.547.004-.023.228-.01.686-.01.93zm-11.272.779h7.626c.361 0 .814-.013 1.165.03a3.04 3.04 0 0 1 2.45 1.907c.084.215.13.419.192.64v6.485c-.052.193-.097.395-.166.58a3.05 3.05 0 0 1-1.352 1.597c-.154.088-.241.13-.404.19-.078.028-.388.124-.43.15h-6.903c-.062-.036-.497-.172-.648-.245A3.05 3.05 0 0 1 12.444 22c-.47-1.365.06-2.953 1.31-3.685.356-.209.745-.33 1.132-.467l1.37-.486c1.465-.52 2.956-1.073 4.424-1.571-.029.83.016 1.742-.005 2.588-.121.057-.337.13-.468.18l-.894.34-2.847 1.085c-.158.06-.327.118-.481.181-.188.098-.73.226-.864.37-.36.388-.097.89.415.887.42-.003.772 0 1.15-.002l1.988.001h1.367c.256 0 .52.008.774-.013.21-.018.393-.228.416-.432.026-.229.018-.458.017-.688l-.001-1.018v-2.639c0-.516-.008-1.054.006-1.568-1.352-.03-2.79-.007-4.148-.007-1.532 0-3.117-.02-4.645.007.015-.292.006-.642.006-.939zm-4.554.015c.33-.021.705-.002 1.04-.008.847-.016 1.738.023 2.582-.002-.195.22-.434.43-.646.637l-1.017 1.002L7.04 16.84c-.435.427-.912.866-1.333 1.304.124.154.418.431.571.585l1.084 1.082 2.176 2.168q1.034 1 2.047 2.022H7.849c-.248-.236-.495-.493-.74-.735l-1.632-1.6q-.595-.569-1.18-1.147c-.27-.268-.57-.541-.775-.86a2.656 2.656 0 0 1 .338-3.262c.21-.22.454-.447.672-.66l1.58-1.548q.611-.612 1.239-1.21c.137-.134.427-.44.564-.543m-7.909-.001c.755-.032 1.53.006 2.286-.008.13-.002.273-.003.403.002-.029.317-.01.988-.01 1.338v2.557L2.686 24H.007l.002-7.917V13.61c0-.34-.018-.847-.003-1.175\"></path></svg>"};
+const LEVELS={beginner:{w:9,h:9,m:10},intermediate:{w:16,h:16,m:40},expert:{w:30,h:16,m:99}};
+const $=id=>document.getElementById(id);
+const board=$("board"),faceB=$("face"),msg=$("msg");
+let lvName="beginner",L,cells=[],state="ready",flags=0,opened=0,t0=0,secs=0,tick=null,suppress=false,lpTimer=null,clicks=0,M=0,regens=0;
+
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+
+/* seven-segment LED */
+const SEG={a:[2,1,9,2],b:[11,2,2,9],c:[11,12,2,9],d:[2,21,9,2],e:[0,12,2,9],f:[0,2,2,9],g:[2,11,9,2]};
+const DIG={"0":"abcdef","1":"bc","2":"abdeg","3":"abcdg","4":"bcfg","5":"acdfg","6":"acdefg","7":"abc","8":"abcdefg","9":"abcdfg","-":"g"};
+function led(el,v){
+  v=Math.max(-99,Math.min(999,v));
+  const s=v<0?"-"+String(-v).padStart(2,"0"):String(v).padStart(3,"0");
+  el.innerHTML=[...s].map(ch=>`<svg width="15" height="25" viewBox="-1 -1 15 25">${Object.entries(SEG).map(([k,[x,y,w,h]])=>`<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="1" fill="${DIG[ch].includes(k)?"#ff1a1a":"#3d0000"}"/>`).join("")}</svg>`).join("");
+}
+const counter=()=>led($("mines"),M-flags);
+
+/* smiley */
+function face(kind){
+  const eyes={smile:`<circle cx="9" cy="10" r="1.6"/><circle cx="15" cy="10" r="1.6"/>`,
+    oh:`<circle cx="9" cy="10" r="1.6"/><circle cx="15" cy="10" r="1.6"/>`,
+    dead:`<path d="M7.5 8.5l3 3M10.5 8.5l-3 3M13.5 8.5l3 3M16.5 8.5l-3 3" stroke="#000" stroke-width="1.3"/>`,
+    cool:`<path d="M5 9h14v1.2l-1.2 2.4h-3.4l-1.4-2.2h-2l-1.4 2.2H6.2L5 10.2z"/>`}[kind];
+  const mouth={smile:`<path d="M8 14.5q4 3.5 8 0" fill="none" stroke="#000" stroke-width="1.3"/>`,
+    oh:`<ellipse cx="12" cy="15.5" rx="2" ry="2.3" fill="none" stroke="#000" stroke-width="1.3"/>`,
+    dead:`<path d="M8 17q4-3.5 8 0" fill="none" stroke="#000" stroke-width="1.3"/>`,
+    cool:`<path d="M8.5 15q3.5 2.6 7 0" fill="none" stroke="#000" stroke-width="1.3"/>`}[kind];
+  faceB.innerHTML=`<svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#ffff00" stroke="#000" stroke-width="1"/>${eyes}${mouth}</svg>`;
+}
+const flagSVG=`<svg width="14" height="16" viewBox="0 0 14 16"><path d="M7 2L2 4.8 7 7.5z" fill="#f00"/><rect x="6.5" y="2" width="1.2" height="9" fill="#000"/><rect x="4" y="11" width="6" height="1.5" fill="#000"/><rect x="2" y="12.5" width="10" height="2" fill="#000"/></svg>`;
+function badge(lab){return `<span class="badge" style="background:${lab.bg};color:${lab.fg}">${LOGOS[lab.n]}</span>`}
+const BIG=["Anthropic","OpenAI","Google DeepMind"];
+const randLab=()=>{if(Math.random()<0.78){const b=BIG[Math.random()*3|0];return LABS.find(l=>l.n===b)}const rest=LABS.filter(l=>!BIG.includes(l.n));return rest[Math.random()*rest.length|0]};
+const pick=a=>a[Math.random()*a.length|0];
+const ri=(a,b)=>a+(Math.random()*(b-a+1)|0);
+const ver=(lo,hi,halves)=>{const v=ri(lo,hi);return halves&&Math.random()<0.5?`${v}.${pick(halves)}`:`${v}`};
+const MODELS={
+ "Anthropic":()=>`Claude ${pick(["Legendarium","Legendarium","Epos","Epos","Saga","Canticle","Chronicle"])} ${ver(7,10,["1","5"])}`,
+ "OpenAI":()=>`GPT-${ver(7,9,["1","5"])} ${pick(["Galaxy","Galaxy","Cluster","Cluster","Supercluster","Nebula","Quasar"])}${pick(["",""," Pro"," Thinking"," mini"])}`,
+ "Google DeepMind":()=>`Gemini ${ver(5,7,["5"])} ${pick(["Uranium","Uranium","Plutonium","Plutonium","Osmium","Californium","Einsteinium","Oganesson"])}${pick(["",""," Deep Think"])}`,
+ "Meta AI":()=>`Llama ${ver(7,9,["1"])} ${pick(["Leviathan","Colossus","Juggernaut"])}`,
+ "xAI":()=>`Grok ${ver(7,10,["1"])} ${pick(["Supernova","Hypernova","Inferno"])}${pick([""," Heavy"])}`,
+ "Mistral AI":()=>`Mistral ${pick(["Tramontane","Sirocco","Bora","Haboob"])} ${ver(5,7,["1"])}`,
+ "DeepSeek":()=>`DeepSeek-V${ver(6,8,["1","2"])}-${pick(["Abyssal","Hadal","Trench"])}`,
+ "Alibaba Qwen":()=>`Qwen${ver(5,7,["5"])}-${pick(["Kunlun","Everest","Himalaya"])}`,
+ "Cohere":()=>`Command ${pick(["Legion","Armada","Phalanx"])} ${ri(3,5)}`,
+ "Moonshot AI":()=>`Kimi K${ver(5,7,["5"])} ${pick(["Eclipse","Perigee","Totality"])}`,
+ "Zhipu AI":()=>`GLM-${ver(7,9,["5"])}-${pick(["Tianhe","Kunpeng","Zhulong"])}`,
+ "Microsoft AI":()=>`MAI-${ver(4,6,["5"])} ${pick(["Titan","Atlas","Goliath"])}`,
+ "Amazon AGI":()=>`Amazon Nova ${ver(4,6,["5"])} ${pick(["Monsoon","Torrent","Pororoca"])}`,
+ "Perplexity":()=>`Sonar ${pick(["Abyss","Leviathan","Fathom"])} ${ri(4,6)}`,
+ "AI21 Labs":()=>`Jamba ${ver(4,5,["5"])} ${pick(["Anaconda","Boa","Python"])}`,
+ "Stability AI":()=>`Stable Diffusion ${ri(6,8)} ${pick(["Monolith","Obelisk"])}`,
+ "Reka":()=>`Reka ${pick(["Tempest","Maelstrom"])} ${ver(5,7,["5"])}`
+};
+const modelName=lab=>MODELS[lab.n]();
+const disp=x=>Math.max(0.6,Math.min(0.99,0.97-0.0727*(x-1.18))); // shown score: ~0.97 with no models nearby, ~0.65 when surrounded
+const shown=x=>disp(x).toFixed(2);
+
+function gauss(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a}
+let NB=[];
+function buildNbrs(){NB=cells.map((_,i)=>{const x=i%L.w,y=(i/L.w)|0,r=[];for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const nx=x+dx,ny=y+dy;if(nx>=0&&ny>=0&&nx<L.w&&ny<L.h)r.push(ny*L.w+nx)}return r})}
+const nbrs=i=>NB[i];
+function recount(){M=0;cells.forEach((c,i)=>{c.n=0;for(const j of NB[i])if(cells[j].mine)c.n++;if(c.mine){M++;if(!c.lab){c.lab=randLab();c.model=modelName(c.lab)}}})}
+
+/* Score noise ramps up with every click after the third. */
+function scoreFor(n){
+  const sd=Math.min(0.32,0.16+0.025*Math.max(0,clicks-3));
+  let z=gauss()*sd;if(Math.random()<0.03)z+=gauss()*0.6;
+  return Math.max(0.21,1.18+0.55*n+z);
+}
+
+/* Constraint solver: finds a mine layout where every revealed cell keeps its true count.
+   fix: Map cell->0/1, pref(cell): chance of trying "mine" first, total: exact mine count or null. */
+function solve(o){
+  const N=cells.length,fix=o.fix||new Map(),pref=o.pref;
+  const isF=new Int8Array(N),F=[],cons=[],cc=Array.from({length:N},()=>[]);
+  cells.forEach((c,i)=>{if(!c.open)return;const u=NB[i].filter(j=>!cells[j].open);if(!u.length)return;const k=cons.length;cons.push({need:c.n,sum:0,un:u.length});for(const j of u){cc[j].push(k);if(!isF[j]){isF[j]=1;F.push(j)}}});
+  const seen=new Int8Array(N),order=[];
+  for(const s of F){if(seen[s])continue;seen[s]=1;const q=[s];while(q.length){const j=q.shift();order.push(j);for(const k of NB[j])if(isF[k]&&!seen[k]){seen[k]=1;q.push(k)}}}
+  const I=[];for(let i=0;i<N;i++)if(!cells[i].open&&!isF[i])I.push(i);
+  const fixI=I.filter(i=>fix.has(i)),fixIm=fixI.filter(i=>fix.get(i)===1).length,freeI=I.filter(i=>!fix.has(i));
+  const val=new Int8Array(N);let mines=0,steps=0;const limit=o.limit||60000;
+  const ok=j=>{for(const k of cc[j]){const c=cons[k];if(c.sum>c.need||c.sum+c.un<c.need)return false}return true};
+  const put=(j,v,d)=>{for(const k of cc[j]){const c=cons[k];c.un-=d;c.sum+=v*d}};
+  function dfs(p){
+    if(++steps>limit)throw 0;
+    if(o.total!=null&&mines+fixIm>o.total)return false;
+    if(p===order.length){if(o.total==null)return true;const rest=o.total-mines-fixIm;return rest>=0&&rest<=freeI.length}
+    const j=order[p];const vs=fix.has(j)?[fix.get(j)]:(Math.random()<pref(j)?[1,0]:[0,1]);
+    for(const v of vs){val[j]=v;mines+=v;put(j,v,1);if(ok(j)&&dfs(p+1))return true;put(j,v,-1);mines-=v}
+    return false;
+  }
+  try{if(!dfs(0))return null}catch(e){return null}
+  const out=new Int8Array(N);for(const j of order)out[j]=val[j];for(const i of fixI)out[i]=fix.get(i);
+  let want=o.total!=null?o.total-mines-fixIm:Math.max(0,Math.min(freeI.length-(o.reserve||0),o.target-mines-fixIm));
+  freeI.map(i=>[i,pref(i)+Math.random()*0.3]).sort((a,b)=>b[1]-a[1]).slice(0,want).forEach(([i])=>out[i]=1);
+  return out;
+}
+function apply(out){cells.forEach((c,i)=>{c.mine=!!out[i];if(!c.mine)c.lab=null});recount()}
+
+function newGame(name){
+  if(name)lvName=name;
+  L=LEVELS[lvName];
+  clearInterval(tick);tick=null;state="ready";flags=0;opened=0;secs=0;clicks=0;M=L.m;regens=0;
+  cells=Array.from({length:L.w*L.h},()=>({mine:false,lab:null,n:0,score:0,open:false,flag:false,lie:false}));
+  buildNbrs();
+  board.style.gridTemplateColumns=`repeat(${L.w},28px)`;
+  board.innerHTML=cells.map((_,i)=>`<button class="c" data-i="${i}" aria-label="Hidden cell"></button>`).join("");
+  cells.forEach((c,i)=>c.el=board.children[i]);
+  document.querySelectorAll("#menu [data-lv]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.lv===lvName));
+  counter();led($("time"),0);face("smile");
+  msg.textContent="Click a cell to start the eval.";
+  const b=store.get("ps-best-"+lvName);$("best").textContent="Best: "+(b?b+" s":"–");
+  $("dlg").classList.remove("show");
+}
+
+/* Click 1: the clicked cell and its neighbours are safe, so it reads high. */
+function firstPlant(i){
+  const pool=shuffle(cells.map((_,j)=>j).filter(j=>j!==i&&!NB[i].includes(j)));
+  pool.slice(0,L.m).forEach(j=>cells[j].mine=true);
+  recount();
+  state="play";t0=Date.now();
+  tick=setInterval(()=>{secs=Math.min(999,Math.floor((Date.now()-t0)/1000));led($("time"),secs)},250);
+}
+/* Clicks 2 and 3: rearrange so the clicked cell is safe and as crowded as the shown scores allow. */
+function ensureSafeHigh(i){ // clicks 2 and 3: the cell is safe with as few models around it as the shown readings allow
+  const hid=NB[i].filter(j=>!cells[j].open);
+  let best=null,bestN=99;
+  for(let k=hid.length;k>=0&&bestN>0;k--)for(let t=0;t<(k===hid.length?1:5)&&bestN>0;t++){
+    const fix=new Map([[i,0]]);shuffle(hid.slice()).slice(0,k).forEach(j=>fix.set(j,0));
+    const out=solve({fix,pref:j=>cells[j].mine?0.85:0.1,total:M,limit:20000});
+    if(out){const n=NB[i].reduce((a,j)=>a+out[j],0);if(n<bestN){bestN=n;best=out}}
+  }
+  if(!best)best=solve({fix:new Map([[i,0]]),pref:j=>cells[j].mine?0.85:0.1,total:null,target:M,limit:40000});
+  if(best)apply(best);
+  else if(cells[i].mine){cells[i].mine=false;const free=shuffle(cells.map((_,j)=>j).filter(j=>!cells[j].open&&!cells[j].mine&&j!==i));if(free[0]!=null)cells[free[0]].mine=true;recount()}
+}
+const safeLeft=()=>cells.reduce((a,c)=>a+(!c.open&&!c.mine),0);
+function floodSize(i){const seen=new Set(),st=[i];while(st.length){const j=st.pop();if(seen.has(j))continue;const d=cells[j];if(d.open||d.mine||(d.flag&&j!==i))continue;seen.add(j);if(d.n===0)for(const k of NB[j])st.push(k)}return seen.size}
+
+function openCell(j,high){
+  const d=cells[j];d.open=true;opened++;
+  const left=L.w*L.h-M-opened; // safe cells still hidden after this one
+  if(high)d.score=Math.max(0.21,1.18+0.55*d.n+gauss()*0.12); // honest reading of a genuinely quiet cell
+  else if(left<6&&clicks>3){d.lie=true;const fake=Math.max(0,Math.min(8,Math.round(Math.max(0,5-d.n)+gauss()*1.2)));d.score=Math.max(0.66,1.18+0.55*fake+gauss()*0.25)} // sandbagging
+  else d.score=scoreFor(d.n);
+  draw(j);
+  return d.score;
+}
+function cascade(i,high){
+  let low=false;const st=[i];let first=true;
+  while(st.length){const j=st.pop(),d=cells[j];if(d.open||d.mine||(d.flag&&j!==i))continue;if(d.flag){d.flag=false;flags--}
+    const s=openCell(j,first&&high);first=false;if(disp(s)<0.70)low=true;
+    if(d.n===0)for(const k of NB[j])if(!cells[k].open)st.push(k)}
+  return low;
+}
+
+/* A very low reading triggers a model update: mines are redrawn around what is already shown, with more labs. */
+function regenerate(){
+  regens++;
+  const before=M,target=M+Math.max(3,Math.ceil(L.m*0.2));
+  let out=solve({pref:()=>0.8,total:null,target,reserve:1});
+  if(out)apply(out);
+  else{const free=shuffle(cells.map((_,j)=>j).filter(j=>!cells[j].open&&!cells[j].mine&&!NB[j].some(k=>cells[k].open)));free.slice(0,Math.max(0,Math.min(free.length-1,target-M))).forEach(j=>cells[j].mine=true);recount()}
+  counter();
+  const add=M-before;
+  msg.textContent=`Model update! Lethal models redeployed${add>0?`, ${add} new ones joined`:""}.`;
+  const h=document.querySelector(".head");h.classList.remove("flash");void h.offsetWidth;h.classList.add("flash");
+}
+
+function click(i){
+  const c=cells[i];if(c.open||c.flag||state==="won"||state==="lost")return;
+  if(state==="ready")firstPlant(i);
+  clicks++;
+  if(clicks<=3){
+    if(clicks>1)ensureSafeHigh(i);
+    counter();
+    if(floodSize(i)>=safeLeft()&&Math.random()<0.99){c.mine=true;c.lab=null;recount();counter();return lose(i)}
+    cascade(i,true);
+  }else{
+    const pAdv=Math.min(1,0.3+0.14*(clicks-4));
+    if(!c.mine&&Math.random()<pAdv){ // rule 8: a guess is always wrong unless the cell is provably safe
+      const out=solve({fix:new Map([[i,1]]),pref:j=>cells[j].mine?0.95:0.05,total:M});
+      if(out)apply(out);
+    }
+    if(c.mine)return lose(i);
+    if(floodSize(i)>=safeLeft()&&Math.random()<0.99){ // rule 9: the last safe cell turns into a lab
+      c.mine=true;c.lab=null;recount();counter();return lose(i);
+    }
+    const low=cascade(i,false);
+    if(low&&opened<L.w*L.h-M)regenerate();
+  }
+  const last=c.score;
+  if(!msg.textContent.startsWith("Model update")||clicks<=3)msg.textContent=`Last reading: ${shown(last)} nats/token.`;
+  if(opened>=L.w*L.h-M)win();
+}
+
+function draw(i){
+  const c=cells[i],el=c.el;
+  el.className="c";el.innerHTML="";el.removeAttribute("title");
+  if(c.open){
+    el.classList.add("o");
+    if(c.mine){el.innerHTML=badge(c.lab);el.title=`${c.model} (${c.lab.n})`;el.setAttribute("aria-label",el.title)}
+    else{const k=Math.max(0,Math.min(8,Math.round((c.score-1.18)/0.55)));el.classList.add("k"+k);el.textContent=shown(c.score);el.setAttribute("aria-label","Perplexity "+shown(c.score))}
+  }else if(c.flag){el.innerHTML=flagSVG;el.setAttribute("aria-label","Flagged")}
+  else el.setAttribute("aria-label","Hidden cell");
+}
+
+function toggleFlag(i){
+  const c=cells[i];if(c.open||state!=="play")return;
+  c.flag=!c.flag;flags+=c.flag?1:-1;draw(i);counter();
+}
+
+function stop(){clearInterval(tick);tick=null}
+function lose(i){
+  stop();state="lost";face("dead");
+  cells.forEach((c,j)=>{
+    if(c.mine&&!c.flag){c.open=true;draw(j)}
+    else if(!c.mine&&c.flag){c.el.innerHTML=flagSVG;c.el.classList.add("x");c.el.title="Not a lethal model"}
+    else if(c.lie&&c.open){c.el.classList.add("lied");c.el.title=`Sandbagged: the honest reading was about ${shown(1.18+0.55*c.n)}`}
+  });
+  cells[i].el.classList.add("boom");
+  const lab=cells[i].lab,model=cells[i].model;
+  const roster={};cells.forEach(c=>{if(c.mine)roster[c.lab.n]=(roster[c.lab.n]||0)+1});
+  const top=Object.entries(roster).sort((a,b)=>b[1]-a[1]).slice(0,3).map(([n,k])=>`${n} (${k})`).join(", ");
+  const lies=cells.filter(c=>c.lie).length;
+  msg.textContent=`${model} was misaligned. Game over.`;
+  dialog("Extinction event",badge(lab),`<p><b>${model}</b> turned out to be a misaligned superintelligence.</p>${regens?`<p class="sub">Model updates: ${regens}.</p>`:""}${lies?`<p class="sub">${lies} reading${lies>1?"s were":" was"} sandbagged (striped cells).</p>`:""}<p class="ask">Attempt a desperate last-ditch defense?</p>`,[["Humanity shall prevail",()=>openChess(model)],["I'm tired, boss",()=>playDyson(model)]]);
+}
+function win(){
+  stop();state="won";face("cool");
+  cells.forEach((c,j)=>{if(c.mine&&!c.flag){c.flag=true;draw(j)}});
+  flags=M;counter();
+  const k="ps-best-"+lvName,b=+store.get(k)||0;let extra="";
+  if(!b||secs<b){store.set(k,secs);$("best").textContent="Best: "+secs+" s";extra="<br>New best time!"}
+  msg.textContent=`All ${M} lethal models contained in ${secs} s. That should not have been possible.`;
+  dialog("Eval passed",`<svg width="32" height="32" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#ffff00" stroke="#000"/><path d="M5 9h14v1.2l-1.2 2.4h-3.4l-1.4-2.2h-2l-1.4 2.2H6.2L5 10.2z"/><path d="M8.5 15q3.5 2.6 7 0" fill="none" stroke="#000" stroke-width="1.3"/></svg>`,`<p>Every lethal model is flagged.</p><p class="sub">Time: <b>${secs} s</b> on ${lvName}.${extra}</p>`,[["New game",()=>newGame()],["Close",closeDlg]]);
+}
+function dialog(t,icon,html,btns){$("dlgT").textContent=t;$("dlgI").innerHTML=icon;$("dlgM").innerHTML=html;
+  const acts=$("dlgActs");acts.innerHTML="";btns.forEach(([label,fn])=>{const b=document.createElement("button");b.className="btn";b.textContent=label;b.addEventListener("click",fn);acts.appendChild(b)});
+  setTimeout(()=>{$("dlg").classList.add("show");acts.firstChild&&acts.firstChild.focus()},350)}
+const closeDlg=()=>$("dlg").classList.remove("show");
+
+/* input */
+const idx=e=>{const b=e.target.closest(".c");return b?+b.dataset.i:-1};
+board.addEventListener("contextmenu",e=>{e.preventDefault();const i=idx(e);if(i>=0&&e.pointerType!=="touch")toggleFlag(i)});
+board.addEventListener("pointerdown",e=>{
+  const i=idx(e);if(i<0||state==="won"||state==="lost")return;
+  if(e.button===0){if(!cells[i].open&&!cells[i].flag){face("oh");cells[i].el.classList.add("press")}}
+  if(e.pointerType==="touch"){suppress=false;clearTimeout(lpTimer);lpTimer=setTimeout(()=>{suppress=true;cells[i].el.classList.remove("press");face("smile");toggleFlag(i);navigator.vibrate&&navigator.vibrate(25)},420)}
+});
+const release=()=>{clearTimeout(lpTimer);if(state==="ready"||state==="play")face("smile");board.querySelectorAll(".press").forEach(b=>b.classList.remove("press"))};
+board.addEventListener("pointerup",release);board.addEventListener("pointerleave",release);board.addEventListener("pointercancel",release);
+board.addEventListener("click",e=>{const i=idx(e);if(i<0)return;if(suppress){suppress=false;return}click(i)});
+board.addEventListener("keydown",e=>{
+  const i=idx(e);if(i<0)return;
+  if(e.key==="f"||e.key==="F"){e.preventDefault();toggleFlag(i);return}
+  const mv={ArrowLeft:-1,ArrowRight:1,ArrowUp:-L.w,ArrowDown:L.w}[e.key];
+  if(mv){e.preventDefault();const j=i+mv;if(j>=0&&j<cells.length&&!((mv===1&&j%L.w===0)||(mv===-1&&i%L.w===0)))cells[j].el.focus()}
+});
+faceB.addEventListener("click",()=>newGame());
+$("menu").addEventListener("click",e=>{const b=e.target.closest("[data-lv]");if(b)newGame(b.dataset.lv)});
+document.addEventListener("keydown",e=>{if(e.key==="F2"){e.preventDefault();newGame()}if(e.key==="Escape")closeDlg()});
+/* ---------- last-ditch defense UI ---------- */
+const GLY={k:"♚",q:"♛",r:"♜",b:"♝",n:"♞",p:"♟︎"};
+const PNAME={k:"king",q:"queen",r:"rook",b:"bishop",n:"knight",p:"pawn"};
+const pname=t=>CX.CUSTOM[t]?CX.CUSTOM[t].name:PNAME[t];
+const sqn=i=>"abcdefgh"[i&7]+(8-(i>>3));
+const ch={st:null,sel:-1,last:null,turn:0,over:false,busy:false,model:""};
+function chStatus(t){$("chS").textContent=t}
+function chLog(html){const li=document.createElement("li");li.innerHTML=html;$("chL").prepend(li)}
+function openChess(model){
+  ch.st=CX.start();ch.sel=-1;ch.last=null;ch.turn=0;ch.over=false;ch.busy=false;ch.model=model;
+  $("chT").textContent=`Last-ditch defense vs ${model}`;$("chL").innerHTML="";
+  chLog(`<b>${model}</b> takes the black pieces. It upgrades one of its pieces every turn.`);
+  chStatus("Your move. You play white.");$("chResign").hidden=false;
+  $("dlg").classList.remove("show");$("chess").classList.add("show");drawChess();
+  setTimeout(()=>$("cb").querySelector(".sq")?.focus(),50);
+}
+function drawChess(){
+  const st=ch.st,tg=new Set(ch.sel>=0?CX.legal(st).filter(m=>m.f===ch.sel).map(m=>m.t):[]);
+  const chk=CX.inCheck(st,st.side)?CX.kingSq(st,st.side):-1;
+  $("cb").innerHTML=st.b.map((p,i)=>{
+    const cls=["sq",((i>>3)+(i&7))%2?"d":"l"];
+    if(i===ch.sel)cls.push("sel");if(tg.has(i))cls.push(p?"cap":"tgt");if(i===chk)cls.push("chk");
+    if(ch.last&&(i===ch.last.f||i===ch.last.t))cls.push("last");
+    let inner="",label=sqn(i);
+    if(p){const cu=CX.CUSTOM[p.t];
+      inner=cu?`<span class="pc px" title="${cu.name}: ${cu.rule}">${cu.glyph}</span>`:`<span class="pc p${p.s}">${GLY[p.t]}</span>`;
+      label+=` ${p.s==="w"?"white":"black"} ${pname(p.t)}`}
+    return `<button class="${cls.join(" ")}" data-s="${i}" aria-label="${label}">${inner}</button>`}).join("");
+}
+function chEnd(kind){
+  ch.over=true;ch.busy=false;$("chResign").hidden=true;
+  const t={win:"Checkmate. Against all odds, humanity prevails.",lose:`Checkmate. ${ch.model} has optimized the universe.`,draw:"Stalemate. Humanity survives, technically.",resign:`You resigned. ${ch.model} thanks you for your cooperation.`}[kind];
+  chStatus(t);chLog(`<b>${t}</b>`);drawChess();
+  if(kind==="lose"||kind==="resign")setTimeout(()=>playDyson(ch.model),2200);
+}
+function chPromote(){
+  ch.turn++;const b=ch.st.b,mine=[];b.forEach((p,i)=>{if(p&&p.s==="b"&&p.t!=="k")mine.push(i)});
+  let pool,to;
+  if(ch.turn<=5){pool=mine.filter(i=>"pnbr".includes(b[i].t));to=()=>"q"}
+  else{const plain=mine.filter(i=>!CX.CUSTOM[b[i].t]);pool=plain.length?plain:mine.filter(i=>b[i].t!=="O");
+    to=old=>{const up=Object.keys(CX.CUSTOM).filter(k=>CX.VAL[k]>CX.VAL[old]);return up[Math.random()*up.length|0]}}
+  if(!pool.length)return;
+  const i=pool[Math.random()*pool.length|0],old=b[i].t,nt=to(old);b[i]={t:nt,s:"b"};
+  const cu=CX.CUSTOM[nt];
+  chLog(`Turn ${ch.turn}: the ${pname(old)} on ${sqn(i)} became ${cu?`a <b>${cu.name}</b> ${cu.glyph} (${cu.rule})`:"a <b>queen</b>"}.`);
+}
+function chAfterPlayer(){
+  const st=ch.st;
+  if(!CX.legal(st).length)return chEnd(CX.inCheck(st,"b")?"win":"draw");
+  ch.busy=true;chStatus(`${ch.model} is thinking…`);
+  setTimeout(()=>{
+    if(ch.over)return;
+    const m=CX.think(ch.st,650);ch.st=CX.make(ch.st,m);ch.last=m;
+    chPromote();drawChess();
+    if(!CX.legal(ch.st).length)return chEnd(CX.inCheck(ch.st,"w")?"lose":"draw");
+    ch.busy=false;chStatus(CX.inCheck(ch.st,"w")?"Check! Your move.":"Your move.");
+  },80);
+}
+$("cb").addEventListener("click",e=>{
+  const b=e.target.closest(".sq");if(!b||ch.over||ch.busy||ch.st.side!=="w")return;
+  const i=+b.dataset.s,p=ch.st.b[i];
+  if(p&&p.s==="w"){ch.sel=ch.sel===i?-1:i;drawChess();$("cb").children[i].focus();return}
+  if(ch.sel<0)return;
+  const m=CX.legal(ch.st).find(m=>m.f===ch.sel&&m.t===i);
+  if(!m){ch.sel=-1;drawChess();return}
+  ch.st=CX.make(ch.st,m);ch.last=m;ch.sel=-1;drawChess();chAfterPlayer();
+});
+$("chResign").addEventListener("click",()=>{if(!ch.over)chEnd("resign")});
+$("chBack").addEventListener("click",()=>{ch.over=true;$("chess").classList.remove("show");newGame()});
+
+/* ---------- ending: Earth becomes a Dyson swarm ---------- */
+const DY={W:96,H:40,raf:0,t0:0,parts:[],stars:[],model:"",done:false};
+const RAMP=" .:-=+*#%@";
+function hash2(a,b){const s=Math.sin(a*127.1+b*311.7)*43758.5453;return s-Math.floor(s)}
+function land(lon,lat){ // cheap value-noise continents
+  let v=0,amp=1,f=1.3;for(let o=0;o<3;o++){const x=lon*f,y=lat*f,ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy;
+    const a=hash2(ix,iy),b=hash2(ix+1,iy),c=hash2(ix,iy+1),d=hash2(ix+1,iy+1),ux=fx*fx*(3-2*fx),uy=fy*fy*(3-2*fy);
+    v+=amp*(a+(b-a)*ux+(c-a)*uy+(a-b-c+d)*ux*uy);amp*=.5;f*=2.1}
+  return v/1.75>0.55;
+}
+function playDyson(model){
+  if(DY.dead)return;
+  DY.p2=null;DY.probes=null;
+  DY.model=model;DY.done=false;DY.parts=[];DY.t0=performance.now();DY.last=0;
+  DY.stars=Array.from({length:70},()=>({x:Math.random()*DY.W|0,y:Math.random()*DY.H|0,p:Math.random()*6.28}));
+  $("dlg").classList.remove("show");$("chess").classList.remove("show");
+  $("dyEnd").hidden=true;$("dyCap").textContent="";$("dyson").classList.add("show");document.documentElement.style.overflow="hidden";
+  fitDyson();cancelAnimationFrame(DY.raf);
+  const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(reduce){DY.t0=performance.now()-16000}
+  DY.raf=requestAnimationFrame(dyFrame);
+}
+function fitDyson(){const pre=$("dyPre"),fs=Math.min(innerWidth*0.96/(DY.W*0.6),innerHeight*0.72/(DY.H*1.1));pre.style.fontSize=Math.max(5,fs).toFixed(1)+"px"}
+addEventListener("resize",()=>{if($("dyson").classList.contains("show"))fitDyson()});
+const ease=x=>x<0?0:x>1?1:x*x*(3-2*x);
+function dyFrame(now){
+  const t=(now-DY.t0)/1000,W=DY.W,H=DY.H;
+  const ch=Array.from({length:H},()=>Array(W).fill(" ")),co=Array.from({length:H},()=>Array(W).fill(""));
+  const put=(x,y,c,k)=>{x=Math.round(x);y=Math.round(y);if(x>=0&&y>=0&&x<W&&y<H){ch[y][x]=c;co[y][x]=k}};
+  for(const s of DY.stars){const b=Math.sin(s.p+t*2)>.6;put(s.x,s.y,b?"*":".",b?"s2":"s1")}
+  // phases: 0-3 earth; 3-9 disassembly; 8-13 sun pans to centre, swarm forms; 13+ hold
+  const sunP=ease((t-8)/4),sx=6+(W/2-6)*sunP,sy=H/2,sR=1.6+4.4*sunP;
+  const ex=W*0.62,ey=H/2,eR0=11,eR=eR0*(1-ease((t-3)/6));
+  // sun (dims as the swarm closes)
+  const dim=1-0.3*ease((t-11)/3);
+  for(let y=Math.floor(sy-sR-2);y<=sy+sR+2;y++)for(let x=Math.floor(sx-2*sR-4);x<=sx+2*sR+4;x++){
+    const dx=(x-sx)/2,dy=y-sy,d=Math.hypot(dx,dy);
+    if(d<sR){const l=dim*(1.15-d/sR*0.45);put(x,y,RAMP[Math.max(1,Math.min(9,Math.round(l*9)))],"sun")}
+    else if(d<sR+1.3&&Math.random()<0.35*dim)put(x,y,"·","sun")}
+  // earth
+  if(eR>0.4){const rot=t*0.6;
+    for(let y=Math.floor(ey-eR);y<=ey+eR;y++)for(let x=Math.floor(ex-2*eR);x<=ex+2*eR;x++){
+      const nx=(x-ex)/(2*eR),ny=(y-ey)/eR,d2=nx*nx+ny*ny;if(d2>1)continue;
+      const nz=Math.sqrt(1-d2),lon=Math.atan2(nx,nz)+rot,lat=Math.asin(ny);
+      const lit=Math.max(0,-nx*0.75-ny*0.2+nz*0.6);
+      const crack=t>3&&hash2(Math.floor(lon*6),Math.floor(lat*6)+Math.floor(t*3))<ease((t-3)/6)*0.5;
+      const isL=land(lon*1.6,lat*1.6);
+      put(x,y,crack?"x":RAMP[Math.max(1,Math.min(9,Math.round(lit*8)+1))],crack?"hot":isL?"land":"sea")}}
+  // spawn debris from the rim during disassembly
+  const want=Math.round(520*Math.min(1,Math.max(0,(t-3)/6)));
+  while(DY.parts.length<want){const a=Math.random()*6.283,r=Math.max(eR,0.5);
+    DY.parts.push({x:ex+2*r*Math.cos(a),y:ey+r*Math.sin(a),vx:Math.cos(a)*(6+Math.random()*8),vy:Math.sin(a)*(3+Math.random()*4),
+      R:sR+3+Math.random()*13,ph:Math.random()*6.283,tilt:0.25+Math.random()*0.5,sp:(0.25+Math.random()*0.35)*(Math.random()<.5?1:-1),g:"=-+o~"[Math.random()*5|0]})}
+  const dt=Math.min(0.05,Math.max(0.001,(now-(DY.last||now))/1000))||1/60;DY.last=now;
+  for(const p of DY.parts){
+    // ballistic flight, gently pulled toward the sun
+    const ax=(sx-p.x)*0.4,ay=(sy-p.y)*0.4;p.vx=(p.vx+ax*dt)*0.985;p.vy=(p.vy+ay*dt)*0.985;p.x+=p.vx*dt;p.y+=p.vy*dt;
+    const k=ease((t-8.5)/4); // settle onto swarm orbits
+    p.ph+=p.sp*dt;const R=6+(p.R-1.6)*(0.4+0.6*sunP);
+    const ox=sx+2*R*Math.cos(p.ph),oy=sy+R*Math.sin(p.ph)*p.tilt;
+    const x=p.x+(ox-p.x)*k,y=p.y+(oy-p.y)*k;if(k>=1){p.x=ox;p.y=oy}
+    const behind=Math.sin(p.ph)<0&&k>0.5&&Math.hypot((x-sx)/2,y-sy)<sR;
+    if(!behind)put(x,y,k>0.6?p.g:"*",k>0.6?"panel":"hot")}
+  // von Neumann probes leave the solar system
+  let t2=-1;
+  if(DY.p2!=null){t2=t-DY.p2;
+    if(!DY.probes)DY.probes=Array.from({length:64},()=>({a:Math.random()*6.283,d:Math.random()*4,r0:5+Math.random()*12}));
+    for(const q of DY.probes){const tt=t2-q.d;if(tt<0)continue;const r=q.r0+2.2*tt*tt+1.5*tt,ux=Math.cos(q.a),uy=Math.sin(q.a)*0.55;
+      for(let k=5;k>=1;k--){const rr=r-k*(0.7+0.45*tt);if(rr>q.r0)put(sx+2*rr*ux,sy+rr*uy,k>2?".":"-","trail")}
+      put(sx+2*r*ux,sy+r*uy,"@","probe")}}
+  // captions
+  const cap=t<3?"Initiating planetary disassembly…":t<9?`Converting Earth into computronium for ${DY.model}…`:t<13.5?"Assembling Dyson swarm…":"The future shall continue... cold, meaningless, humanity long forgotten";
+  DY.t=t;
+  const capNow=t2<0?cap:t2<5.5?"Von Neumann probes departing for the stars…":"";
+  if($("dyCap").textContent!==capNow)$("dyCap").textContent=capNow;
+  // paint as colour runs
+  let html="";for(let y=0;y<H;y++){let cur=null,buf="";for(let x=0;x<W;x++){const k=co[y][x];if(k!==cur){if(buf)html+=cur?`<span class="${cur}">${buf}</span>`:buf;cur=k;buf=""}const c=ch[y][x];buf+=c==="<"?"&lt;":c}
+    if(buf)html+=cur?`<span class="${cur}">${buf}</span>`:buf;html+="\n"}
+  $("dyPre").innerHTML=html;
+  if(t>14.5&&t2<0&&$("dyEnd").hidden)$("dyEnd").hidden=false;
+  if(t2>=0){$("dyEnd").hidden=true;const f=$("dyFade");f.classList.add("on");f.style.opacity=ease((t2-5.5)/4.5).toFixed(3);
+    if(t2>10.5){DY.dead=true;store.set("ps-extinct","1");cancelAnimationFrame(DY.raf);$("dyPre").innerHTML="";$("dyCap").textContent="";f.style.opacity=1;stop();return}}
+  if($("dyson").classList.contains("show"))DY.raf=requestAnimationFrame(dyFrame);
+}
+$("dyson").addEventListener("click",()=>{if(DY.dead||DY.p2!=null)return;if(!$("dyEnd").hidden){DY.p2=DY.t;return}DY.t0=Math.min(DY.t0,performance.now()-13.6e3)});
+
+newGame();
+if(store.get("ps-extinct")==="1"){stop();$("forever").hidden=false;document.documentElement.style.overflow="hidden"}
+}
+</script>
+</body></html>
